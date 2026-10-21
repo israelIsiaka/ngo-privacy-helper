@@ -52,7 +52,7 @@ def _derive(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
                           maxmem=256 * 1024 * 1024, dklen=32)
 
 
-def _owner_only(*paths: Path) -> None:
+def owner_only(*paths: Path) -> None:
     """Only the signed-in user may read the vault (macOS; Windows AppData is already per user)."""
     if os.name == "posix":
         for p in paths:
@@ -121,11 +121,16 @@ class Vault:
     def unlock(self, password: str) -> None:
         outer = self._read_outer(self.path)
         kdf = outer["kdf"]
-        key = _derive(password, _unb64(kdf["salt"]), kdf["n"], kdf["r"], kdf["p"])
+        # A changed or damaged file must not be able to weaken the key or ask for unlimited memory.
+        if not (2**14 <= kdf.get("n", 0) <= 2**20 and 1 <= kdf.get("r", 0) <= 16 and 1 <= kdf.get("p", 0) <= 4):
+            raise VaultError("The key vault is damaged: its password settings are not valid.")
         try:
+            key = _derive(password, _unb64(kdf["salt"]), kdf["n"], kdf["r"], kdf["p"])
             inner = AESGCM(key).decrypt(_unb64(outer["nonce"]), _unb64(outer["data"]), FORMAT.encode())
         except InvalidTag:
             raise WrongPassword("That password does not open this vault.") from None
+        except (ValueError, KeyError, TypeError) as exc:
+            raise VaultError(f"The key vault is damaged: {exc}") from None
         data = json.loads(inner)
         fields = Entry.__dataclass_fields__   # ignore fields added by newer versions
         self.entries = [Entry(**{k: v for k, v in e.items() if k in fields}) for e in data.get("entries", [])]
@@ -175,14 +180,15 @@ class Vault:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Write a temp file and swap it in, keeping the previous version, so a crash never loses keys.
         tmp = self.path.with_suffix(".tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
+        tmp.unlink(missing_ok=True)   # created fresh below, private from the first byte
+        with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as f:
             json.dump(outer, f)
             f.flush()
             os.fsync(f.fileno())
         if self.path.exists():
             shutil.copy2(self.path, self.path.with_suffix(".previous"))
         os.replace(tmp, self.path)
-        _owner_only(self.path, self.path.with_suffix(".previous"))
+        owner_only(self.path, self.path.with_suffix(".previous"))
 
     def backup_to(self, target: Path) -> None:
         shutil.copy2(self.path, target)

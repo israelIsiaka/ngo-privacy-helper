@@ -161,6 +161,18 @@ def test_expired_keys_are_destroyed_everywhere(tmp_path: Path):
         assert probe.get(old.id) is None
 
 
+def test_tampered_password_settings_are_refused(tmp_path: Path):
+    import json
+    v = Vault(tmp_path / "keys.vault")
+    v.create("long enough password")
+    for n in (2, 2**30):    # too weak to protect the keys / more memory than any laptop has
+        outer = json.loads(v.path.read_text())
+        outer["kdf"]["n"] = n
+        v.path.write_text(json.dumps(outer))
+        with pytest.raises(VaultError):
+            Vault(v.path).unlock("long enough password")
+
+
 def test_vault_is_private_to_the_user(tmp_path: Path):
     import os
     import stat

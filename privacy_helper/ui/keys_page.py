@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import filecrypt
-from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault, days_from_today
+from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault, days_from_today, owner_only
 from .common import FILE_MANAGER, SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, reveal
 
 TYPE_LABEL = {KIND_FILE: "Encrypted file", KIND_PDF: "Locked PDF", KIND_MASK: "Hidden details"}
@@ -164,6 +164,7 @@ class KeysPage(QWidget):
             return
         try:
             Path(path).write_text(self._key_text(e) + "\n", encoding="utf-8")
+            owner_only(Path(path))   # a key in plain text: other accounts on this Mac must not read it
         except OSError as exc:
             QMessageBox.warning(self, "Could Not Export Key", str(exc))
             return

@@ -47,6 +47,8 @@ def hint(text: str) -> QLabel:
     label = QLabel(text)
     label.setObjectName("hint")
     label.setWordWrap(True)
+    # Hints show file names and error messages: never let a name such as "<img src=…>.csv" render as HTML.
+    label.setTextFormat(Qt.TextFormat.PlainText)
     label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
     return label
 
@@ -55,6 +57,7 @@ def error_label() -> QLabel:
     """Red text readable on both light and dark system themes."""
     label = QLabel()
     label.setWordWrap(True)
+    label.setTextFormat(Qt.TextFormat.PlainText)
     dark = label.palette().color(QPalette.ColorRole.Window).lightness() < 128
     label.setStyleSheet(f"color: {'#ff8a80' if dark else '#b3261e'};")
     return label

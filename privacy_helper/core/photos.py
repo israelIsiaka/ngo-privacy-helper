@@ -18,7 +18,12 @@ from PySide6.QtGui import QImage, QImageReader, QPainter
 
 from .filecrypt import free_path
 
-SUPPORTED = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
+# Each type is read only by its own Qt decoder. Without this, Qt guesses the type from the contents, so a
+# ".jpg" that is really an ICNS or SVG file would reach decoders with known crash bugs in Qt 6.8.3
+# (CVE-2025-5683, CVE-2025-10728). The build also leaves those decoders out.
+_FORMAT = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".webp": "webp", ".heic": "heic",
+           ".tif": "tiff", ".tiff": "tiff", ".bmp": "bmp"}
+SUPPORTED = set(_FORMAT)
 _KEEP_TYPE = {".jpg", ".jpeg", ".png"}   # other types are saved as JPEG, which every phone and computer opens
 BLOCKS = 6   # a blurred area becomes about 6 × 6 blocks: too coarse to recognise a face or read a name
 
@@ -64,7 +69,11 @@ def _jpeg_exif(data: bytes) -> bytes:
 
 
 def load(path: Path) -> QImage:
-    reader = QImageReader(str(path))
+    fmt = _FORMAT.get(Path(path).suffix.lower())
+    if fmt is None:
+        raise PhotoError(f"{Path(path).name} is not a supported photo type.")
+    reader = QImageReader(str(path), fmt.encode())
+    reader.setAutoDetectImageFormat(False)   # never fall back to guessing the type from the contents
     reader.setAutoTransform(True)   # apply the phone's rotation before the rotation tag is dropped
     image = reader.read()
     if image.isNull():

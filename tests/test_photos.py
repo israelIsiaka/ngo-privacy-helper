@@ -46,3 +46,15 @@ def test_non_photos_are_refused(tmp_path: Path):
     assert not photos.has_location(bad)
     with pytest.raises(photos.PhotoError):
         photos.load(bad)
+
+
+def test_photo_type_comes_from_the_name_not_the_contents(tmp_path: Path):
+    """A .jpg that is really another image type must not reach that type's decoder."""
+    disguised = tmp_path / "photo.jpg"
+    img = QImage(8, 8, QImage.Format.Format_RGB32)
+    img.fill(QColor("red"))
+    img.save(str(disguised), "PNG")
+    with pytest.raises(photos.PhotoError):
+        photos.load(disguised)
+    with pytest.raises(photos.PhotoError):
+        photos.load(tmp_path / "icon.icns")
