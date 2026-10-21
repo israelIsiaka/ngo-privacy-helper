@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import filecrypt
-from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault
+from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault, days_from_today
 from .common import FILE_MANAGER, SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, reveal
 
 TYPE_LABEL = {KIND_FILE: "Encrypted file", KIND_PDF: "Locked PDF", KIND_MASK: "Hidden details"}
@@ -52,8 +52,8 @@ class KeysPage(QWidget):
         top.addWidget(import_btn)
         lay.addLayout(top)
 
-        self.model = QStandardItemModel(0, 4)
-        self.model.setHorizontalHeaderLabels(["Name", "Type", "Created", "Saved as"])
+        self.model = QStandardItemModel(0, 5)
+        self.model.setHorizontalHeaderLabels(["Name", "Type", "Created", "Delete on", "Saved as"])
         self.proxy = QSortFilterProxyModel(self)
         self.proxy.setSourceModel(self.model)
         self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -70,7 +70,7 @@ class KeysPage(QWidget):
         self.view.setAlternatingRowColors(True)
         head = self.view.horizontalHeader()
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in (1, 2, 3):
+        for c in (1, 2, 3, 4):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.view, 1)
         self.empty = hint("No keys yet. Protect a file and its key will appear here.")
@@ -81,9 +81,11 @@ class KeysPage(QWidget):
         self.copy_btn = QPushButton("Copy Key")
         self.export_btn = QPushButton("Export Key…")
         self.show_btn = QPushButton(f"Show in {FILE_MANAGER}")
+        self.expiry_btn = QPushButton("Set Delete Date…")
+        self.expiry_btn.setToolTip("Choose when this key is destroyed for good.")
         self.delete_btn = QPushButton("Delete…")
         foot.addWidget(self.status, 1)
-        for b in (self.delete_btn, self.show_btn, self.export_btn, self.copy_btn):
+        for b in (self.delete_btn, self.expiry_btn, self.show_btn, self.export_btn, self.copy_btn):
             foot.addWidget(b)
         lay.addLayout(foot)
 
@@ -93,6 +95,7 @@ class KeysPage(QWidget):
         self.copy_btn.clicked.connect(self.copy_key)
         self.export_btn.clicked.connect(self.export_key)
         self.show_btn.clicked.connect(self.show_file)
+        self.expiry_btn.clicked.connect(self.set_expiry)
         self.delete_btn.clicked.connect(self.delete)
         self._update_buttons()
 
@@ -101,14 +104,16 @@ class KeysPage(QWidget):
         self.model.setRowCount(0)
         for e in self.vault.entries:
             created = datetime.fromisoformat(e.created)
-            cells = [e.label, TYPE_LABEL.get(e.kind, e.kind), created.strftime("%d %b %Y, %H:%M"),
+            expires = datetime.fromisoformat(e.expires).strftime("%d %b %Y") if e.expires else "Never"
+            cells = [e.label, TYPE_LABEL.get(e.kind, e.kind), created.strftime("%d %b %Y, %H:%M"), expires,
                      Path(e.output).name if e.output else ("" if e.kind == KIND_MASK else "Not saved")]
             items = [QStandardItem(c) for c in cells]
-            for item, sort in zip(items, [e.label.casefold(), cells[1], e.created, cells[3]], strict=True):
+            sorts = [e.label.casefold(), cells[1], e.created, e.expires or "9999", cells[4]]
+            for item, sort in zip(items, sorts, strict=True):
                 item.setData(sort, Qt.ItemDataRole.UserRole + 1)
             items[0].setData(e.id, Qt.ItemDataRole.UserRole)
             if e.output:
-                items[3].setToolTip(e.output)
+                items[4].setToolTip(e.output)
             self.model.appendRow(items)
         self.empty.setVisible(not self.vault.entries)
         if selected:
@@ -137,6 +142,7 @@ class KeysPage(QWidget):
         self.copy_btn.setText("Copy Password" if e and e.kind == KIND_PDF else "Copy Key")
         self.export_btn.setEnabled(bool(e and e.kind == KIND_FILE))
         self.show_btn.setEnabled(bool(e and e.output and Path(e.output).exists()))
+        self.expiry_btn.setEnabled(e is not None)
         self.delete_btn.setEnabled(e is not None)
 
     def _key_text(self, e) -> str:
@@ -209,6 +215,25 @@ class KeysPage(QWidget):
         e = self._entry()
         if e and e.output and Path(e.output).exists():
             reveal(Path(e.output))
+
+    def set_expiry(self) -> None:
+        e = self._entry()
+        if not e:
+            return
+        consequence = ("replies that use these codes can no longer be restored, so the people in them stay "
+                       "hidden for good" if e.kind == KIND_MASK else f"{e.label} can never be opened again")
+        days, ok = QInputDialog.getInt(
+            self, "Set Delete Date",
+            f"Destroy the key for {e.label} in how many days?\n\n"
+            f"After that, {consequence}. Enter 0 to keep it until you delete it.", 90, 0, 3650)
+        if not ok:
+            return
+        e.expires = days_from_today(days)
+        self.vault.save()
+        self.reload()
+        self.status.setText(f"The key for {e.label} will be destroyed on "
+                            f"{datetime.fromisoformat(e.expires):%d %b %Y}." if e.expires
+                            else f"The key for {e.label} will be kept until you delete it.")
 
     def delete(self) -> None:
         e = self._entry()

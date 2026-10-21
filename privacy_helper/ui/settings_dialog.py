@@ -31,7 +31,7 @@ from .common import hint
 
 PLURAL = {"PLACE": "Addresses and locations", "ID": "ID numbers", "ACCOUNT": "Bank accounts",
           "CARD": "Payment cards", "VEHICLE": "Vehicle plates", "ONLINE": "Links, handles and IP addresses",
-          "SENSITIVE": "Protected topics"}
+          "SENSITIVE": "Protected topics", "DESCRIPTION": "Descriptions that point to one person"}
 
 
 class SettingsDialog(QDialog):
@@ -40,7 +40,7 @@ class SettingsDialog(QDialog):
         self.vault = vault
         s = vault.settings
         self.setWindowTitle("Settings")
-        self.resize(560, 520)
+        self.resize(560, 640)
         tabs = QTabWidget()
 
         # Hiding
@@ -101,6 +101,22 @@ class SettingsDialog(QDialog):
         slay.addLayout(lock_form)
         slay.addWidget(hint("Locking clears any open text from the screen."))
         slay.addSpacing(12)
+        slay.addWidget(QLabel("<b>Delete keys automatically</b>"))
+        keep_form = QFormLayout()
+        self.mask_days, self.file_days = QSpinBox(), QSpinBox()
+        for box, value in ((self.mask_days, s.mask_days), (self.file_days, s.file_days)):
+            box.setRange(0, 3650)
+            box.setSuffix(" days")
+            box.setSpecialValueText("Never")
+            box.setValue(value)
+        keep_form.addRow("Hidden-details records after", self.mask_days)
+        keep_form.addRow("File keys and PDF passwords after", self.file_days)
+        slay.addLayout(keep_form)
+        slay.addWidget(hint("Once a hidden-details record is destroyed, the AI's replies can no longer be filled "
+                            "in, so the people in them stay hidden for good. Once a file key is destroyed, that file "
+                            "can never be opened again. Applies to new keys; set a date for older ones in Keys. "
+                            "Backups made before the date still hold the keys."))
+        slay.addSpacing(12)
         slay.addWidget(QLabel("<b>Master password</b>"))
         change = QPushButton("Change Master Password…")
         change.clicked.connect(self.change_password)
@@ -143,6 +159,7 @@ class SettingsDialog(QDialog):
         s.off_patterns = [k for k, box in self.pattern_boxes.items() if not box.isChecked()]
         s.suggest_names = self.suggest.isChecked()
         s.lock_minutes = self.lock_minutes.value()
+        s.mask_days, s.file_days = self.mask_days.value(), self.file_days.value()
         s.output_folder = self.folder.text() if self.in_folder.isChecked() else ""
         self.vault.save()
         super().accept()

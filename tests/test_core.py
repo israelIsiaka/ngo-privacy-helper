@@ -142,6 +142,25 @@ def test_password_change_leaves_no_copy_openable_with_old_password(tmp_path: Pat
     previous.unlock("new password here")
 
 
+def test_expired_keys_are_destroyed_everywhere(tmp_path: Path):
+    from datetime import date, timedelta
+
+    from privacy_helper.core.vault import KIND_MASK
+    v = Vault(tmp_path / "keys.vault")
+    v.create("long enough password")
+    v.settings.mask_days = 30
+    old = v.add(KIND_MASK, "case note", mapping={"PERSON_1": "Hadiza Ibrahim"})
+    kept = v.add(KIND_FILE, "report.pdf", secret="x")          # file_days is 0: kept until deleted
+    assert old.expires == (date.today() + timedelta(days=30)).isoformat() and kept.expires == ""
+    assert v.purge_expired(date.today()) == []
+    assert v.purge_expired(date.today() + timedelta(days=30)) == ["case note"]
+    assert [e.id for e in v.entries] == [kept.id]
+    for copy in (v.path, v.path.with_suffix(".previous")):     # the crash-guard copy forgets it too
+        probe = Vault(copy)
+        probe.unlock("long enough password")
+        assert probe.get(old.id) is None
+
+
 def test_vault_is_private_to_the_user(tmp_path: Path):
     import os
     import stat
@@ -155,3 +174,17 @@ def test_encrypted_name_cannot_escape_output_folder():
     for evil in ("../../etc/passwd", "..\\..\\Windows\\win.ini", "..", "", "/abs/x.txt"):
         name = filecrypt._safe_name(evil)
         assert "/" not in name and "\\" not in name and name not in ("", ".", "..")
+
+
+def test_rows_that_still_stand_out_are_counted(tmp_path: Path):
+    csv_file = tmp_path / "people.csv"
+    rows = ["Name,Age,Sex,Children"] + [f"Person {i},30,F,2" for i in range(4)] + ["Amina Bello,71,F,7"]
+    csv_file.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    table = documents.read_table(csv_file)
+    assert table.columns[0].role == documents.HIDE
+    rare, columns = documents.rare_rows(table)
+    assert rare == 1 and set(columns) == {"Age", "Sex", "Children"}   # only the 71-year-old stands out
+    table.columns[1].role = documents.HIDE                       # hiding Age is not enough...
+    assert documents.rare_rows(table)[0] == 1                    # ...she is the only one with 7 children
+    table.columns[3].role = documents.HIDE
+    assert documents.rare_rows(table) == (0, ["Sex"])
