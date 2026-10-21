@@ -32,6 +32,12 @@ _HEADER_HINTS = [
     (r"\bnin\b|bvn|passport|national id|id ?(no|number)|card", "ID"),
     (r"account|iban|nuban", "ACCOUNT"),
     (r"birth|dob", "DATE"),
+    (r"religion|faith|ethnic|tribe|diagnos|health|medical|disabilit|hiv|condition|illness|treatment|"
+     r"sexual|orientation|gbv|incident|criminal|conviction|asylum|immigration|biometric|fingerprint", "SENSITIVE"),
+    (r"card no|card number|pan\b", "CARD"),
+    (r"plate|vehicle|car reg", "VEHICLE"),
+    (r"gps|coordinates|latitude|longitude|lat\b|lng\b|lon\b", "PLACE"),
+    (r"facebook|twitter|instagram|tiktok|handle|social|website|url|\bip\b", "ONLINE"),
 ]
 _SCAN_HINTS = r"note|message|comment|description|story|narrative|details|remarks|summary|complaint|request"
 

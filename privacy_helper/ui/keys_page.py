@@ -7,13 +7,23 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QSortFilterProxyModel, Qt, Signal
-from PySide6.QtGui import QGuiApplication, QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLineEdit, QMessageBox,
-                               QPushButton, QTableView, QVBoxLayout, QWidget)
+from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..core import filecrypt
 from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault
-from .common import FILE_MANAGER, hint, page_header, reveal
+from .common import FILE_MANAGER, SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, reveal
 
 TYPE_LABEL = {KIND_FILE: "Encrypted file", KIND_PDF: "Locked PDF", KIND_MASK: "Hidden details"}
 KEY_FILTER = "NGO Privacy Helper key (*.nphkey);;All files (*)"
@@ -94,7 +104,7 @@ class KeysPage(QWidget):
             cells = [e.label, TYPE_LABEL.get(e.kind, e.kind), created.strftime("%d %b %Y, %H:%M"),
                      Path(e.output).name if e.output else ("" if e.kind == KIND_MASK else "Not saved")]
             items = [QStandardItem(c) for c in cells]
-            for item, sort in zip(items, [e.label.casefold(), cells[1], e.created, cells[3]]):
+            for item, sort in zip(items, [e.label.casefold(), cells[1], e.created, cells[3]], strict=True):
                 item.setData(sort, Qt.ItemDataRole.UserRole + 1)
             items[0].setData(e.id, Qt.ItemDataRole.UserRole)
             if e.output:
@@ -104,6 +114,11 @@ class KeysPage(QWidget):
         if selected:
             self.select(selected.id)
         self._update_buttons()
+
+    def clear(self) -> None:
+        self.model.setRowCount(0)
+        self.search.clear()
+        self.status.setText("")
 
     def select(self, entry_id: str) -> None:
         for row in range(self.proxy.rowCount()):
@@ -130,8 +145,9 @@ class KeysPage(QWidget):
     def copy_key(self) -> None:
         e = self._entry()
         if e:
-            QGuiApplication.clipboard().setText(self._key_text(e))
-            self.status.setText("Copied. Send it separately from the file, for example by phone or SMS.")
+            copy_secret(self._key_text(e))
+            self.status.setText(f"Copied for {SECRET_CLEAR_SECONDS} seconds. Send it separately from the file, "
+                                "for example by phone or SMS.")
 
     def export_key(self) -> None:
         e = self._entry()

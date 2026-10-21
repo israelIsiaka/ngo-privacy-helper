@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "S", "UP"]
+ignore = [
+    "S603", "S607",   # subprocess with fixed argument lists (Finder/Explorer reveal, build tools)
+    "B023",           # Qt slot lambdas bind loop values via default arguments on purpose
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]   # asserts and test passwords
+"packaging/*.spec" = ["F821"]          # PyInstaller injects Analysis, PYZ, EXE...
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

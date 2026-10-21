@@ -37,7 +37,7 @@ def write_ico(svg: QSvgRenderer, path: Path) -> None:
         blobs.append(bytes(buf.data()))
     offset = 6 + 16 * len(sizes)
     out = struct.pack("<HHH", 0, 1, len(sizes))
-    for size, blob in zip(sizes, blobs):
+    for size, blob in zip(sizes, blobs, strict=True):
         dim = 0 if size == 256 else size
         out += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(blob), offset)
         offset += len(blob)

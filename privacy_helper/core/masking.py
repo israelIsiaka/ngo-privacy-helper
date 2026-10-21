@@ -9,46 +9,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# Kinds of detail, in the order they are shown to staff.
-KINDS = {
-    "PERSON": "Person",
-    "PLACE": "Place",
-    "PHONE": "Phone",
-    "EMAIL": "Email",
-    "ID": "ID number",
-    "ACCOUNT": "Account number",
-    "DATE": "Date",
-    "OTHER": "Other",
-}
+from .pii import KINDS, PATTERN_KINDS, find_patterns, find_sensitive
 
 # Source decides who wins when two detections overlap, and what is ticked by default.
 SOURCE_KNOWN = "known"          # from the NGO's own records or always-hide list
 SOURCE_PATTERN = "pattern"      # fixed-shape details such as phone numbers
 SOURCE_MANUAL = "manual"        # staff selected it by hand
 SOURCE_SUGGESTED = "suggested"  # looks like a name; staff must confirm
-_PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGESTED: 3}
+SOURCE_TOPIC = "topic"          # protected topic such as health or religion; staff decide
+_PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGESTED: 3, SOURCE_TOPIC: 4}
 
-_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
-# Nigerian mobile numbers (0803 555 1234, +234 803 555 1234) and general
-# international or grouped numbers (555-123-4567, +44 20 7946 0958).
-_PHONE = re.compile(
-    r"(?<![\w+])(?:"
-    r"(?:\+?234[\s.-]?|0)[789][01]\d(?:[\s.-]?\d){7}"
-    r"|\+\d{1,3}(?:[\s.-]?\(?\d{1,4}\)?){2,5}"
-    r"|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}"
-    r")(?!\w)"
-)
-_ID_11 = re.compile(r"(?<![\w.])\d{11}(?!\w|\.\d)")      # NIN, BVN
-_ACCOUNT_10 = re.compile(r"(?<![\w.])\d{10}(?!\w|\.\d)")  # NUBAN bank account
-_MONTHS = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|"
-           r"Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)")
-_DATE = re.compile(
-    r"\b(?:\d{1,2}[/.-]\d{1,2}[/.-](?:\d{4}|\d{2})"
-    r"|\d{4}-\d{2}-\d{2}"
-    rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTHS}\.?,?\s+\d{{4}}"
-    rf"|{_MONTHS}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s+\d{{4}})\b",
-    re.IGNORECASE,
-)
 _HONORIFIC = re.compile(
     r"\b(?:Mr|Mrs|Ms|Miss|Dr|Mallam|Malam|Alhaji|Alhaja|Hajiya|Chief|Pastor|Rev|"
     r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})"
@@ -65,8 +35,6 @@ _LEADING = {"the", "a", "an", "this", "that", "these", "those", "she", "he", "th
             "dear", "please", "today", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday",
             "saturday", "sunday", "and", "but", "if", "so"}
 
-PATTERN_KINDS = ("EMAIL", "PHONE", "ID", "ACCOUNT", "DATE")
-
 _TOKEN = re.compile(r"\[\s*(" + "|".join(KINDS) + r")[ _](\d+)\s*\]|\b(" + "|".join(KINDS) + r")_(\d+)\b",
                     re.IGNORECASE)
 
@@ -79,6 +47,7 @@ class Detection:
     kind: str
     source: str
     enabled: bool = True
+    label: str = ""       # what found it, shown to staff ("Phone number", "Health")
 
 
 def _norm(value: str) -> str:
@@ -115,6 +84,7 @@ class Detector:
         self.patterns = set(patterns)
         self.suggest_names = suggest_names
         self.known: dict[str, str] = {}
+        self._known_rx: re.Pattern | None = None
         for term, kind in (known or {}).items():
             self.add_known(term, kind)
 
@@ -122,6 +92,7 @@ class Detector:
         term = " ".join(term.split())
         if len(term) >= 2 and _norm(term) not in self.never:
             self.known.setdefault(term, kind)
+        self._known_rx = None
         # A person's first name or surname on its own ("Hadiza said...") is also hidden.
         if kind == "PERSON":
             for part in term.split():
@@ -129,10 +100,12 @@ class Detector:
                     self.known.setdefault(part, kind)
 
     def _known_regex(self) -> re.Pattern | None:
-        if not self.known:
-            return None
-        terms = sorted(self.known, key=len, reverse=True)
-        return re.compile(r"(?<!\w)(" + "|".join(re.escape(t) for t in terms) + r")(?!\w)", re.IGNORECASE)
+        # Compiled once per set of terms: a spreadsheet can add thousands of names.
+        if self._known_rx is None and self.known:
+            terms = sorted(self.known, key=len, reverse=True)
+            self._known_rx = re.compile(r"(?<!\w)(" + "|".join(re.escape(t) for t in terms) + r")(?!\w)",
+                                        re.IGNORECASE)
+        return self._known_rx
 
     def find(self, text: str) -> list[Detection]:
         found: list[Detection] = []
@@ -144,17 +117,19 @@ class Detector:
                 # Names such as Blessing or Hope are also ordinary words: only hide them capitalised.
                 if kind == "PERSON" and " " not in word and not word[0].isupper():
                     continue
-                found.append(Detection(m.start(), m.end(), word, kind, SOURCE_KNOWN))
+                found.append(Detection(m.start(), m.end(), word, kind, SOURCE_KNOWN, label="From your records"))
 
-        checks = [("EMAIL", _EMAIL), ("PHONE", _PHONE), ("ID", _ID_11), ("ACCOUNT", _ACCOUNT_10), ("DATE", _DATE)]
-        for kind, rx in checks:
-            if kind in self.patterns:
-                found += [Detection(m.start(), m.end(), m.group(0), kind, SOURCE_PATTERN) for m in rx.finditer(text)]
+        for start, end, value, kind, label in find_patterns(text, self.patterns):
+            found.append(Detection(start, end, value, kind, SOURCE_PATTERN, label=label))
+        if "SENSITIVE" in self.patterns:
+            for start, end, value, topic in find_sensitive(text):
+                found.append(Detection(start, end, value, "SENSITIVE", SOURCE_TOPIC, False, topic))
 
         if self.suggest_names:
             for rx in (_HONORIFIC, _INTRO):
                 for m in rx.finditer(text):
-                    found.append(Detection(m.start(1), m.end(1), m.group(1), "PERSON", SOURCE_SUGGESTED))
+                    found.append(Detection(m.start(1), m.end(1), m.group(1), "PERSON", SOURCE_SUGGESTED,
+                                           label="Name after a title"))
             # Other capitalised runs are listed unticked: staff decide.
             for m in _CAPS_RUN.finditer(text):
                 start, words = m.start(), m.group(0).split()
@@ -162,7 +137,8 @@ class Detector:
                     start = text.index(words[1], start + len(words[0])) if len(words) > 1 else m.end()
                     words = words[1:]
                 if len(words) >= 2 and len(words[0]) >= 3:
-                    found.append(Detection(start, m.end(), text[start:m.end()], "PERSON", SOURCE_SUGGESTED, False))
+                    found.append(Detection(start, m.end(), text[start:m.end()], "PERSON", SOURCE_SUGGESTED, False,
+                                           "Possible name"))
 
         found = [d for d in found if _norm(d.text) not in self.never]
         return resolve_overlaps(found)

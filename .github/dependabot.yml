@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Stay on Qt 6.8 LTS (macOS 12+, Windows 10). Qt 6.12 needs macOS 14.4 and is the last for Windows 10.
+      - dependency-name: PySide6-Essentials
+        versions: [">=6.9"]
+      - dependency-name: shiboken6
+        versions: [">=6.9"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

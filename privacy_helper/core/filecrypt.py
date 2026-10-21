@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 import secrets
 import struct
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -112,7 +112,10 @@ def decrypt_file(src: Path, out_dir: Path, key: bytes, progress: Progress = None
             size_raw = fin.read(4)
             if len(size_raw) < 4:
                 raise DecryptError("The file is incomplete. It may have been cut short while copying.")
-            sealed = fin.read(struct.unpack(">I", size_raw)[0])
+            size = struct.unpack(">I", size_raw)[0]
+            if size > CHUNK + 16:
+                raise DecryptError("The file is damaged.")
+            sealed = fin.read(size)
             last = not fin.peek(1)   # nothing after this record
             try:
                 return aes.decrypt(_nonce(prefix, index), sealed, _aad(header, index, last)), last
@@ -120,7 +123,7 @@ def decrypt_file(src: Path, out_dir: Path, key: bytes, progress: Progress = None
                 raise DecryptError("The key does not match, or the file was changed after it was encrypted.") from None
 
         meta, _ = take(0)
-        name = Path(json.loads(meta)["name"]).name or "decrypted"   # .name drops any folder parts
+        name = _safe_name(json.loads(meta).get("name", ""))
         out = free_path(Path(out_dir) / name)
         tmp = out.with_name(out.name + ".part")
         try:
@@ -136,6 +139,12 @@ def decrypt_file(src: Path, out_dir: Path, key: bytes, progress: Progress = None
         finally:
             tmp.unlink(missing_ok=True)
     return out
+
+
+def _safe_name(name: str) -> str:
+    """Keep only a plain file name: never a folder path from inside an encrypted file."""
+    name = Path(str(name).replace("\\", "/")).name.strip()
+    return name if name not in ("", ".", "..") else "decrypted"
 
 
 def export_key(key_id: str, key: bytes) -> str:

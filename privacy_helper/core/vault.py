@@ -52,6 +52,14 @@ def _derive(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
                           maxmem=256 * 1024 * 1024, dklen=32)
 
 
+def _owner_only(*paths: Path) -> None:
+    """Only the signed-in user may read the vault (macOS; Windows AppData is already per user)."""
+    if os.name == "posix":
+        for p in paths:
+            if p.exists():
+                os.chmod(p, 0o600)
+
+
 def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -72,7 +80,7 @@ class Entry:
 class Settings:
     always_hide: list[str] = field(default_factory=list)
     never_hide: list[str] = field(default_factory=list)
-    patterns: list[str] = field(default_factory=lambda: ["EMAIL", "PHONE", "ID", "ACCOUNT", "DATE"])
+    off_patterns: list[str] = field(default_factory=list)   # kinds switched off; new kinds start on
     suggest_names: bool = True
     lock_minutes: int = 10
     output_folder: str = ""          # empty: save next to the original
@@ -110,7 +118,8 @@ class Vault:
         except InvalidTag:
             raise WrongPassword("That password does not open this vault.") from None
         data = json.loads(inner)
-        self.entries = [Entry(**e) for e in data.get("entries", [])]
+        fields = Entry.__dataclass_fields__   # ignore fields added by newer versions
+        self.entries = [Entry(**{k: v for k, v in e.items() if k in fields}) for e in data.get("entries", [])]
         known = Settings.__dataclass_fields__
         self.settings = Settings(**{k: v for k, v in data.get("settings", {}).items() if k in known})
         self._key, self._kdf = key, kdf
@@ -126,6 +135,8 @@ class Vault:
         Vault(self.path).unlock(old)   # raises WrongPassword
         self._set_password(new)
         self.save()
+        # The kept previous copy still opens with the old password; replace it.
+        shutil.copy2(self.path, self.path.with_suffix(".previous"))
 
     def _set_password(self, password: str) -> None:
         self._kdf = {"name": "scrypt", "salt": _b64(secrets.token_bytes(16)), **SCRYPT}
@@ -162,6 +173,7 @@ class Vault:
         if self.path.exists():
             shutil.copy2(self.path, self.path.with_suffix(".previous"))
         os.replace(tmp, self.path)
+        _owner_only(self.path, self.path.with_suffix(".previous"))
 
     def backup_to(self, target: Path) -> None:
         shutil.copy2(self.path, target)
@@ -184,9 +196,6 @@ class Vault:
 
     def get(self, entry_id: str) -> Entry | None:
         return next((e for e in self.entries if e.id == entry_id), None)
-
-    def update(self, entry: Entry) -> None:
-        self.save()
 
     def remove(self, entry_id: str) -> None:
         self.entries = [e for e in self.entries if e.id != entry_id]

@@ -14,7 +14,8 @@ def test_mask_and_restore_round_trip():
     det = masking.Detector({"Hadiza Ibrahim": "PERSON", "Zamfara Shelter": "PLACE", "Blessing Okafor": "PERSON"})
     session = masking.Session()
     masked = masking.mask_text(NOTE, det, session)
-    for secret in ("Hadiza", "0803 555 1234", "hadiza@example.org", "Zamfara", "Musa Garba", "12345678901", "12/03/1990"):
+    secrets = ("Hadiza", "0803 555 1234", "hadiza@example.org", "Zamfara", "Musa Garba", "12345678901", "12/03/1990")
+    for secret in secrets:
         assert secret not in masked, secret
     assert "[PERSON_1]" in masked and "[PLACE_1]" in masked
     assert "Blessing and hope" not in masked     # capitalised name is hidden...
@@ -128,3 +129,29 @@ def test_vault(tmp_path: Path):
     v.lock()
     v.unlock("a new long password")
     assert len(v.entries) == 1
+
+
+def test_password_change_leaves_no_copy_openable_with_old_password(tmp_path: Path):
+    v = Vault(tmp_path / "keys.vault")
+    v.create("old password here")
+    v.add(KIND_FILE, "a.pdf", secret="x")
+    v.change_password("old password here", "new password here")
+    previous = Vault(tmp_path / "keys.previous")
+    with pytest.raises(WrongPassword):
+        previous.unlock("old password here")
+    previous.unlock("new password here")
+
+
+def test_vault_is_private_to_the_user(tmp_path: Path):
+    import os
+    import stat
+    v = Vault(tmp_path / "keys.vault")
+    v.create("long enough password")
+    if os.name == "posix":
+        assert stat.S_IMODE(os.stat(v.path).st_mode) == 0o600
+
+
+def test_encrypted_name_cannot_escape_output_folder():
+    for evil in ("../../etc/passwd", "..\\..\\Windows\\win.ini", "..", "", "/abs/x.txt"):
+        name = filecrypt._safe_name(evil)
+        assert "/" not in name and "\\" not in name and name not in ("", ".", "..")

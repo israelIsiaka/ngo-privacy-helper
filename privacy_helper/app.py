@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import getpass
+import hashlib
 import sys
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, QStandardPaths, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QListWidget, QMainWindow, QMessageBox, QStackedWidget,
-                               QTabWidget, QWidget)
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QListWidget,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+    QTabWidget,
+    QWidget,
+)
 
 from . import __version__
 from .core import documents
@@ -176,7 +188,13 @@ class MainWindow(QMainWindow):
     def lock(self, auto: bool) -> None:
         if not self.vault.unlocked:
             return
-        for page in (self.hide_page, self.restore_page, self.protect_page):
+        # Never lock under a running file job or an open dialog: both still need the keys.
+        if self.protect_page.busy or QApplication.activeModalWidget() is not None:
+            self.idle.start(60_000)
+            if not auto:
+                self.protect_page.status.setText("The app will lock when the current files are finished.")
+            return
+        for page in (self.hide_page, self.restore_page, self.protect_page, self.keys_page):
             page.clear()
         self.vault.lock()
         self.lock_screen.reset("Locked after a period of no activity. Open text was cleared for privacy."
@@ -269,6 +287,55 @@ class ActivityWatcher(QObject):
         return False
 
 
+# ---- one running copy per user ------------------------------------------------------
+# Two copies would each keep their own list of keys and overwrite each other's saves.
+SERVER_NAME = "ngo-privacy-helper-" + hashlib.sha256(getpass.getuser().encode()).hexdigest()[:16]
+
+
+def hand_over_to_running_copy(paths: list[str]) -> bool:
+    """If the app is already open, send it the files to open and return True."""
+    sock = QLocalSocket()
+    sock.connectToServer(SERVER_NAME)
+    if not sock.waitForConnected(500):
+        return False
+    sock.write(("\n".join(paths) + "\n").encode("utf-8"))
+    sock.waitForBytesWritten(1000)
+    sock.disconnectFromServer()
+    return True
+
+
+def listen_for_other_copies(window: MainWindow) -> QLocalServer:
+    server = QLocalServer(window)
+    server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)   # same user only
+    QLocalServer.removeServer(SERVER_NAME)    # clears a stale socket left by a crash
+    server.listen(SERVER_NAME)
+
+    def accept() -> None:
+        sock = server.nextPendingConnection()
+        buffer = bytearray()
+
+        def finish() -> None:
+            for line in bytes(buffer).decode("utf-8", "replace").splitlines():
+                if line.strip() and Path(line).is_file():
+                    window.open_path(Path(line))
+            window.showNormal()
+            window.raise_()
+            window.activateWindow()
+        sock.readyRead.connect(lambda: buffer.extend(bytes(sock.readAll())))
+        sock.disconnected.connect(finish)
+        sock.disconnected.connect(sock.deleteLater)
+    server.newConnection.connect(accept)
+    return server
+
+
+def report_unexpected_error(exc_type, exc, tb) -> None:
+    traceback.print_exception(exc_type, exc, tb)
+    if QApplication.instance() is not None:
+        QMessageBox.critical(None, "Something Went Wrong",
+                             f"The last action did not finish.\n\n{exc}\n\n"
+                             "Your saved keys are not affected. If this keeps happening, restart the app.")
+
+
 def vault_path() -> Path:
     base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
     return Path(base) / "keys.vault"
@@ -280,6 +347,11 @@ def main() -> int:
     QApplication.setOrganizationName("Startbench")
     QApplication.setApplicationVersion(__version__)
     app = Application(sys.argv)
+    # Windows passes opened files as arguments; macOS turns them into FileOpen events (handled above).
+    paths = [a for a in sys.argv[1:] if Path(a).is_file()] if sys.platform != "darwin" else []
+    if hand_over_to_running_copy(paths):
+        return 0
+    sys.excepthook = report_unexpected_error
     icon = RESOURCES / "icon.png"
     if icon.exists():
         app.setWindowIcon(QIcon(str(icon)))
@@ -288,9 +360,8 @@ def main() -> int:
     window = MainWindow(Vault(vault_path()))
     app.window = window
     app.installEventFilter(ActivityWatcher(window))
-    # Windows passes opened files as arguments; macOS turns them into FileOpen events (handled above).
-    for arg in sys.argv[1:] if sys.platform != "darwin" else []:
-        if Path(arg).is_file():
-            window.open_path(Path(arg))
+    listen_for_other_copies(window)
+    for path in paths:
+        window.open_path(Path(path))
     window.show()
     return app.exec()

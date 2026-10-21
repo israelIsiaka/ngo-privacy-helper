@@ -9,20 +9,46 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QGuiApplication, QPalette, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout, QHeaderView,
-                               QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
-                               QTableWidget, QTabWidget, QTextEdit, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget)
+from PySide6.QtGui import QColor, QGuiApplication, QPalette, QTextCharFormat, QTextCursor
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTabWidget,
+    QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..core import documents
-from ..core.masking import (KINDS, SOURCE_KNOWN, SOURCE_MANUAL, SOURCE_PATTERN, SOURCE_SUGGESTED, Detection,
-                            Detector, Session, _norm, apply, resolve_overlaps)
+from ..core.masking import (
+    KINDS,
+    PATTERN_KINDS,
+    SOURCE_MANUAL,
+    SOURCE_TOPIC,
+    Detection,
+    Detector,
+    Session,
+    _norm,
+    apply,
+    resolve_overlaps,
+)
 from ..core.vault import KIND_MASK, Vault
 from .common import hint, page_header, primary
 
-SOURCE_LABEL = {SOURCE_KNOWN: "From your records", SOURCE_PATTERN: "Recognised pattern",
-                SOURCE_SUGGESTED: "Possible name", SOURCE_MANUAL: "Added by you"}
+MAX_OPEN_MB = 50   # keeps the review screen responsive
 OPEN_FILTER = "Supported files (*.txt *.md *.csv *.xlsx *.docx);;All files (*)"
 
 
@@ -38,7 +64,7 @@ class ColumnsDialog(QDialog):
         self.setWindowTitle(f"Columns in {file_name}")
         self.resize(760, 460)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel(f"<b>Which columns hold personal details?</b>"))
+        lay.addWidget(QLabel("<b>Which columns hold personal details?</b>"))
         lay.addWidget(hint("Suggestions are filled in from the column names and contents. Check them before "
                            "continuing. Every value in a hidden column is also hidden wherever it appears in "
                            "notes and messages."))
@@ -79,7 +105,7 @@ class ColumnsDialog(QDialog):
         lay.addWidget(buttons)
 
     def accept(self) -> None:
-        for col, role, kind in zip(self.table.columns, self.role_boxes, self.kind_boxes):
+        for col, role, kind in zip(self.table.columns, self.role_boxes, self.kind_boxes, strict=True):
             col.role, col.kind = role.currentData(), kind.currentData()
         super().accept()
 
@@ -181,6 +207,11 @@ class HidePage(QWidget):
 
     def open_path(self, path: Path) -> None:
         suffix = path.suffix.lower()
+        if path.is_file() and path.stat().st_size > MAX_OPEN_MB * 1024 * 1024:
+            QMessageBox.information(self, "File Too Large",
+                                    f"{path.name} is larger than {MAX_OPEN_MB} MB. Split it into smaller files, "
+                                    "or protect it as a whole in Protect Files.")
+            return
         try:
             if suffix in documents.TABLE_TYPES:
                 table = documents.read_table(path)
@@ -225,7 +256,8 @@ class HidePage(QWidget):
     # ---- detection ---------------------------------------------------------
     def detector(self) -> Detector:
         s = self.vault.settings
-        det = Detector(never=s.never_hide, patterns=tuple(s.patterns), suggest_names=s.suggest_names)
+        patterns = tuple(k for k in PATTERN_KINDS if k not in s.off_patterns)
+        det = Detector(never=s.never_hide, patterns=patterns, suggest_names=s.suggest_names)
         for term in s.always_hide:
             det.add_known(term, "OTHER")
         for term, kind in self.known.items():
@@ -237,7 +269,7 @@ class HidePage(QWidget):
         found = self.detector().find(text) if text.strip() else []
         for term, kind in self.manual.items():
             for m in re.finditer(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE):
-                found.append(Detection(m.start(), m.end(), m.group(0), kind, SOURCE_MANUAL))
+                found.append(Detection(m.start(), m.end(), m.group(0), kind, SOURCE_MANUAL, label="Added by you"))
         found = resolve_overlaps(found)
         for d in found:
             d.enabled = self.choices.get(_norm(d.text), d.enabled)
@@ -280,7 +312,7 @@ class HidePage(QWidget):
                 groups[d.kind] = QTreeWidgetItem(self.tree, [KINDS[d.kind], ""])
                 groups[d.kind].setFirstColumnSpanned(True)
                 groups[d.kind].setExpanded(True)
-            item = QTreeWidgetItem(groups[d.kind], [d.text, SOURCE_LABEL[d.source]])
+            item = QTreeWidgetItem(groups[d.kind], [d.text, d.label])
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(0, Qt.CheckState.Checked if d.enabled else Qt.CheckState.Unchecked)
             item.setData(0, Qt.ItemDataRole.UserRole, key)
@@ -320,7 +352,10 @@ class HidePage(QWidget):
         preview_session = Session(dict(self.session.mapping))
         self.preview.setPlainText(apply(text, hidden, preview_session) if text else "")
         n = len({_norm(d.text) for d in hidden})
-        self.count_label.setText(f"{n} detail{'s' if n != 1 else ''} will be hidden" if text.strip() else "")
+        topics = len({_norm(d.text) for d in self.detections if d.source == SOURCE_TOPIC and not d.enabled})
+        note = f" · {topics} protected topic{'s' if topics != 1 else ''} left visible: check before sharing" \
+            if topics else ""
+        self.count_label.setText(f"{n} detail{'s' if n != 1 else ''} will be hidden{note}" if text.strip() else "")
         ready = bool(text.strip())
         self.copy_btn.setEnabled(ready)
         self.save_btn.setEnabled(ready)
@@ -335,7 +370,8 @@ class HidePage(QWidget):
     def _remember(self) -> None:
         """Save the tokens in the vault so the AI's reply can be restored, even next week."""
         label = self.source_name or " ".join(self.editor.toPlainText().split()[:6]) or "Pasted text"
-        existing = next((e for e in self.vault.entries if e.kind == KIND_MASK and e.mapping is self.session.mapping), None)
+        mapping = self.session.mapping
+        existing = next((e for e in self.vault.entries if e.kind == KIND_MASK and e.mapping is mapping), None)
         if existing:
             self.vault.save()
         else:

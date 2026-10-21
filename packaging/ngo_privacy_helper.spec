@@ -13,8 +13,8 @@ a = Analysis(
     [str(ROOT / "run.py")],
     pathex=[str(ROOT)],
     datas=[(str(ROOT / "privacy_helper" / "resources"), "privacy_helper/resources")],
-    # Qt modules the app never uses; keeps the download smaller.
-    excludes=["tkinter", "PySide6.QtNetwork", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtSql",
+    # Qt modules the app never uses; keeps the download smaller. (QtNetwork is used: single running copy.)
+    excludes=["tkinter", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtSql",
               "PySide6.QtTest", "PySide6.QtOpenGL", "PySide6.QtDBus", "PySide6.QtConcurrent"],
 )
 pyz = PYZ(a.pure)

@@ -4,13 +4,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
-                               QRadioButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..core.masking import KINDS, PATTERN_KINDS
 from ..core.vault import Vault, VaultError, WrongPassword
 from .common import hint
+
+PLURAL = {"PLACE": "Addresses and locations", "ID": "ID numbers", "ACCOUNT": "Bank accounts",
+          "CARD": "Payment cards", "VEHICLE": "Vehicle plates", "ONLINE": "Links, handles and IP addresses",
+          "SENSITIVE": "Protected topics"}
 
 
 class SettingsDialog(QDialog):
@@ -26,7 +47,8 @@ class SettingsDialog(QDialog):
         hiding = QWidget()
         form = QVBoxLayout(hiding)
         form.addWidget(QLabel("<b>Always hide these words</b>"))
-        form.addWidget(hint("One per line. For example your partner organisations, local place names or project code names."))
+        form.addWidget(hint("One per line. For example your partner organisations, local place names or "
+                            "project code names."))
         self.always = QPlainTextEdit("\n".join(s.always_hide))
         form.addWidget(self.always)
         form.addWidget(QLabel("<b>Never hide these words</b>"))
@@ -35,14 +57,13 @@ class SettingsDialog(QDialog):
         form.addWidget(self.never)
         form.addWidget(QLabel("<b>Look for</b>"))
         self.pattern_boxes = {}
-        row = QHBoxLayout()
-        for kind in PATTERN_KINDS:
-            box = QCheckBox(KINDS[kind] + "s" if not KINDS[kind].endswith("s") else KINDS[kind])
-            box.setChecked(kind in s.patterns)
+        grid = QGridLayout()
+        for i, kind in enumerate(PATTERN_KINDS):
+            box = QCheckBox(PLURAL.get(kind, KINDS[kind] + "s"))
+            box.setChecked(kind not in s.off_patterns)
             self.pattern_boxes[kind] = box
-            row.addWidget(box)
-        row.addStretch(1)
-        form.addLayout(row)
+            grid.addWidget(box, i // 3, i % 3)
+        form.addLayout(grid)
         self.suggest = QCheckBox("Suggest possible names (Mr, Mrs, Mallam, Alhaji, Hajiya and similar)")
         self.suggest.setChecked(s.suggest_names)
         form.addWidget(self.suggest)
@@ -115,9 +136,11 @@ class SettingsDialog(QDialog):
 
     def accept(self) -> None:
         s = self.vault.settings
-        lines = lambda edit: [w.strip() for w in edit.toPlainText().splitlines() if w.strip()]
+
+        def lines(edit: QPlainTextEdit) -> list[str]:
+            return [w.strip() for w in edit.toPlainText().splitlines() if w.strip()]
         s.always_hide, s.never_hide = lines(self.always), lines(self.never)
-        s.patterns = [k for k, box in self.pattern_boxes.items() if box.isChecked()]
+        s.off_patterns = [k for k, box in self.pattern_boxes.items() if not box.isChecked()]
         s.suggest_names = self.suggest.isChecked()
         s.lock_minutes = self.lock_minutes.value()
         s.output_folder = self.folder.text() if self.in_folder.isChecked() else ""

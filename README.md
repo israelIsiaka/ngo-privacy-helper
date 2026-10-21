@@ -8,7 +8,7 @@ Everything happens on the staff member's computer. There is no server, no accoun
 
 | Section | What staff do |
 |---|---|
-| **Hide Details** | Paste a case note, or open a Word, Excel, CSV or text file. Names, phone numbers, places, emails, ID and account numbers and dates are found and listed for review. Untick anything that is safe, select anything missed, then copy the safe version into any AI tool. |
+| **Hide Details** | Paste a case note, or open a Word, Excel, CSV or text file. Personal details and protected topics (see the list below) are found and listed for review. Untick anything that is safe, select anything missed, then copy the safe version into any AI tool. |
 | **Restore Details** | Paste the AI's reply. Codes such as `[PERSON_1]` are replaced with the real details again. Works days later, because the codes are kept in the key vault. |
 | **Protect Files** | Drop any file to encrypt it (`.nph`), or lock a PDF with a password that opens in any PDF reader. Drop a protected file to open it again. Every file gets its own key. |
 | **Keys** | Every key, PDF password and hidden-details record, listed by file name and searchable. Copy, export, import, or show the protected file in Finder or File Explorer. |
@@ -20,12 +20,53 @@ Original:  Hadiza Ibrahim (0803 555 1234) at Zamfara Shelter needs clean water.
 Sent:      [PERSON_1] ([PHONE_1]) at [PLACE_1] needs clean water.
 ```
 
+## What counts as personal and protected data
+
+The app looks for every category of personal data that can be recognised in text. It follows the **Nigeria Data Protection Act 2023**, the **GDPR** (Articles 4, 9 and 10), the **HIPAA Safe Harbor** list of 18 identifiers, and humanitarian data guidance. Each group can be switched off in **Settings › Hiding**.
+
+### Personal identifiers (hidden by default)
+
+| Group | What is found | How it is checked |
+|---|---|---|
+| **Names** | Names from the NGO's own records (including first names or surnames on their own), names after titles (Mr, Mrs, Ms, Dr, Mallam, Alhaji, Alhaja, Hajiya, Chief, Pastor, Engr and others), names after "my name is" | Your records are matched exactly. Other capitalised names are listed unticked for staff to confirm |
+| **Phone numbers** | Nigerian mobiles (0803…, +234 803…), international numbers, grouped numbers | Pattern |
+| **Email addresses** | Any email address | Pattern |
+| **Government and organisation IDs** | NIN, BVN, Nigerian passport, driver's licence, voter number (VIN), tax ID (TIN), UNHCR and refugee case numbers, US Social Security numbers, UK National Insurance numbers. Also any number written after a label such as *passport*, *case*, *file*, *ref*, *patient*, *hospital*, *MRN*, *member*, *beneficiary*, *household*, *ration card* or *tag* | Pattern. Labelled numbers must contain a digit, and a plain year is ignored |
+| **Bank and payment details** | Nigerian bank accounts (NUBAN), IBANs, payment card numbers | IBANs must pass the mod-97 check, and card numbers the Luhn check |
+| **Dates** | Dates in any common format, including dates of birth | Pattern |
+| **Addresses and locations** | Street addresses ("No. 12 Adeola Odeku Street"), GPS coordinates, UK postcodes, US ZIP codes, plus codes, and places from the NGO's records (camps, shelters, villages) | Pattern and your records |
+| **Vehicle plates** | Nigerian number plates | Pattern |
+| **Online identifiers** | Web links, social media handles, IP addresses, phone IMEIs, device MAC addresses | IP addresses must be valid |
+
+### Protected topics (listed for staff to decide)
+
+These are the *special categories* that the law treats as sensitive: **NDPA 2023 section 30**, **GDPR Articles 9 and 10**, and safeguarding practice. They are highlighted and listed but **not ticked automatically**. The AI often needs the topic ("needs legal aid for an asylum case") once the person is hidden, so a staff member decides each time. The status bar warns when protected topics are left visible.
+
+| Topic | Examples of what is flagged |
+|---|---|
+| Health | HIV status, TB, pregnancy, miscarriage, disability, mental health, fistula, sickle cell, medication |
+| Sexual life or orientation | LGBTQ+ terms, sexual orientation, gender identity, sex work |
+| Violence and abuse | rape, sexual assault, defilement, FGM, domestic violence, GBV, child or forced marriage, trafficking |
+| Religion or belief | Muslim, Christian, Catholic, Ahmadiyya, Shia, Sunni, apostate |
+| Ethnic origin | Hausa, Fulani, Yoruba, Igbo, Kanuri, Tiv, Ijaw, Rohingya, tribe, indigene |
+| Political opinion | party membership, named parties, activist, separatist |
+| Criminal record | arrested, convicted, detained, criminal record, ex-combatant, named armed groups |
+| Immigration status | asylum seeker, undocumented, deported, stateless, IDP |
+| Biometric or genetic | fingerprints, biometrics, iris scan, DNA, genotype, blood group |
+| Trade union | trade union, union member, NLC, ASUU |
+
+Spreadsheet columns with headings such as *religion*, *ethnicity*, *diagnosis*, *HIV status*, *disability* or *incident* are suggested as **hide the whole value**.
+
+### What cannot be found automatically
+
+Photos, voice recordings, handwriting, and descriptions that identify someone without naming them ("the only blind woman in Camp B") cannot be recognised in text. This is why **a person always reviews** the highlighted text before anything is copied. The full catalogue is in [`privacy_helper/core/pii.py`](privacy_helper/core/pii.py).
+
 ### How details are found
 
 Spreadsheets have no fixed layout, so the app does not rely on column names alone.
 
 1. **The NGO's own records.** When a spreadsheet is opened, staff confirm which columns hold names, places, phones and so on. Suggestions are pre-filled from column names and contents. Every value in those columns is then hidden wherever it appears, including inside free-text notes. This also covers Hausa, Yoruba, Igbo and other names that general-purpose name detectors miss.
-2. **Fixed patterns.** Nigerian and international phone numbers, emails, 11-digit NIN/BVN, 10-digit NUBAN account numbers and dates.
+2. **Fixed patterns.** Every identifier in the table above, with validity checks where they exist.
 3. **Possible names.** Names after titles such as Mr, Mrs, Mallam, Alhaji or Hajiya are ticked automatically. Other capitalised word pairs are listed unticked for staff to confirm.
 4. **Staff review.** Nothing leaves the app until a person has seen the highlighted text.
 
@@ -33,12 +74,16 @@ Settings hold an organisation-wide "always hide" list and a "never hide" list.
 
 ## Security design
 
-- **Key vault.** One file in the user's app-data folder, encrypted with AES-256-GCM under a key derived from the master password with scrypt (N=2^17, r=8, p=1). It is written atomically and the previous copy is kept, so a crash cannot lose keys. The vault locks after a period of no activity (10 minutes by default) and clears open text from the screen.
+- **Key vault.** One file in the user's app-data folder, readable only by that user. It is encrypted with AES-256-GCM under a key derived from the master password with scrypt (N=2^17, r=8, p=1). It is written atomically and the previous copy is kept, so a crash cannot lose keys. After a password change, the kept copy is re-saved under the new password. Only one copy of the app runs per user, so two windows can never overwrite each other's keys.
+- **Auto-lock.** The vault locks after a period of no activity (10 minutes by default). Open text and the key list are cleared from the screen. Locking waits for any file being encrypted to finish.
 - **Encrypted files (`.nph`).** Each file has its own random 256-bit key. Contents are encrypted with AES-256-GCM in 1 MB chunks. Each chunk is authenticated together with the file header, its position and an end-of-file flag, so tampering, reordering or truncation is detected. The format is byte-identical on Windows and macOS.
 - **Locked PDFs.** Standard PDF AES-256 encryption with a random 20-character password and a separate random owner password.
 - **Keys are saved before files are written.** A protected file can never exist without its key. Originals are never changed or deleted.
 - **Safe Word copies.** These are written as new documents, not edited copies, so tracked changes, comments and author properties from the original cannot leak.
 - **Sharing.** To let a colleague open a file, send the file and, separately (by phone or SMS), its key (`NPHKEY1:…`) or PDF password.
+- **Clipboard.** Copied keys and passwords are removed from the clipboard after 60 seconds. On Windows they are also kept out of clipboard history and cloud clipboard sync.
+- **Untrusted files.** File names inside encrypted files are cleaned, so they cannot write outside the chosen folder. Damaged files are rejected before memory is used. Spreadsheets are parsed with `defusedxml`.
+- **Checks on every change.** The tests (including tamper, wrong-key and false-alarm cases), the `ruff` linter with security rules, and `pip-audit` for known vulnerabilities in dependencies run on Windows and macOS for every push. Dependabot proposes dependency updates, and is held to Qt 6.8 for compatibility.
 
 > If the master password is lost and there is no backup, protected files cannot be opened. Use **Settings › Security › Back Up Keys**.
 
@@ -65,7 +110,8 @@ Requires Python 3.12.
 ```bash
 python -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt     # Windows: .venv\Scripts\python
-.venv/bin/python -m pytest -q tests
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check .                              # lint, including security rules
 .venv/bin/python run.py                                       # run the app
 .venv/bin/python packaging/build.py                           # build the installer for this OS
 ```
@@ -78,7 +124,7 @@ After editing `packaging/icon.svg`, run `python packaging/make_icons.py`.
 
 ```
 privacy_helper/
-  core/        masking, key vault, file encryption, PDF lock, file reading (no UI code)
+  core/        PII catalogue, masking, key vault, file encryption, PDF lock, file reading (no UI code)
   ui/          one module per section, plus settings and the lock screen
   app.py       main window, menus, auto-lock, files opened from Finder or File Explorer
 packaging/     PyInstaller recipe, Windows installer script, icons, build script
@@ -87,6 +133,7 @@ tests/         core tests (pytest)
 
 ## Known limits
 
+- Protected-topic lists are in English, with Nigerian terms. Add local-language words to **Always hide** in Settings.
 - Name detection is rule-based. It does not use a machine-learning model, which would add several hundred MB to the download. The NGO's own records and staff review cover most of the gap.
 - Restore works on pasted text and on `.txt` and `.docx` files. Word formatting is not kept in safe copies, by design.
 - Unsigned builds show a security warning on first launch. Code signing costs about USD 100 to 300 a year on Windows and USD 99 a year for Apple.

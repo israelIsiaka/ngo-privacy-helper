@@ -5,11 +5,11 @@ from __future__ import annotations
 import subprocess
 import sys
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont, QPalette
+from PySide6.QtCore import QMimeData, QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont, QGuiApplication, QPalette
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
 APP_NAME = "NGO Privacy Helper"
@@ -67,6 +67,28 @@ def primary(button: QPushButton) -> QPushButton:
     f.setWeight(QFont.Weight.DemiBold)
     button.setFont(f)
     return button
+
+
+SECRET_CLEAR_SECONDS = 60
+
+
+def copy_secret(text: str) -> None:
+    """Copy a key or password, keep it out of Windows clipboard history and cloud sync,
+    and clear it after a minute if it is still there."""
+    data = QMimeData()
+    data.setText(text)
+    if sys.platform == "win32":
+        win = 'application/x-qt-windows-mime;value="{}"'
+        data.setData(win.format("ExcludeClipboardContentFromMonitorProcessing"), b"\x01\x00\x00\x00")
+        data.setData(win.format("CanIncludeInClipboardHistory"), b"\x00\x00\x00\x00")
+        data.setData(win.format("CanUploadToCloudClipboard"), b"\x00\x00\x00\x00")
+    clipboard = QGuiApplication.clipboard()
+    clipboard.setMimeData(data)
+
+    def clear() -> None:
+        if clipboard.text() == text:
+            clipboard.clear()
+    QTimer.singleShot(SECRET_CLEAR_SECONDS * 1000, clear)
 
 
 def reveal(path: Path) -> None:

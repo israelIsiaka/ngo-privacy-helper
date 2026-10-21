@@ -8,15 +8,27 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QButtonGroup, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-                               QLineEdit, QMessageBox, QProgressBar, QPushButton, QRadioButton, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..core import filecrypt, pdflock
 from ..core.vault import KIND_FILE, KIND_PDF, Vault
-from .common import FILE_MANAGER, DropZone, Job, hint, page_header, reveal, run_job
+from .common import FILE_MANAGER, SECRET_CLEAR_SECONDS, DropZone, Job, copy_secret, hint, page_header, reveal, run_job
 
 
 class ProtectPage(QWidget):
@@ -245,11 +257,16 @@ class ProtectPage(QWidget):
         entry = self.vault.get(info.get("entry", "")) if info else None
         if not entry:
             return
-        text = entry.secret if entry.kind == KIND_PDF else filecrypt.export_key(entry.id, base64.b64decode(entry.secret))
-        QGuiApplication.clipboard().setText(text)
-        self.status.setText("Copied. Send it separately from the file, for example by phone or SMS.")
+        if entry.kind == KIND_PDF:
+            text = entry.secret
+        else:
+            text = filecrypt.export_key(entry.id, base64.b64decode(entry.secret))
+        copy_secret(text)
+        self.status.setText(f"Copied for {SECRET_CLEAR_SECONDS} seconds. Send it separately from the file, "
+                            "for example by phone or SMS.")
 
     def clear(self) -> None:
+        self.queue.clear()
         self.table.setRowCount(0)
         self.rows.clear()
         self.status.setText("")

@@ -5,10 +5,20 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit,
-                               QPushButton, QSplitter, QVBoxLayout, QWidget)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..core import documents
 from ..core.masking import restore
@@ -94,7 +104,8 @@ class RestorePage(QWidget):
         text, count = restore(self.reply.toPlainText(), entry.mapping)
         self.result.setPlainText(text)
         self.status.setText(f"{count} detail{'s' if count != 1 else ''} restored." if count else
-                            "No codes from this text were found in the reply. Check that the right text is chosen above.")
+                            "No codes from this text were found in the reply. "
+                            "Check that the right text is chosen above.")
         self._update_buttons()
 
     def save(self) -> None:
@@ -112,6 +123,7 @@ class RestorePage(QWidget):
             QMessageBox.warning(self, "Could Not Save", str(exc))
 
     def clear(self) -> None:
+        self.sessions.clear()
         self.reply.clear()
         self.result.clear()
         self.status.setText("")
