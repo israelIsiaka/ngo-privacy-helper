@@ -11,7 +11,8 @@ Everything happens on the staff member's computer. There is no server, no accoun
 | **Hide Details** | Paste a case note, or open a Word, Excel, CSV or text file. Personal details and protected topics (see the list below) are found and listed for review. Untick anything that is safe, select anything missed, then copy the safe version into any AI tool. |
 | **Restore Details** | Paste the AI's reply. Codes such as `[PERSON_1]` are replaced with the real details again. Works days later, because the codes are kept in the key vault. |
 | **Protect Files** | Drop any file to encrypt it (`.nph`), or lock a PDF with a password that opens in any PDF reader. Drop a protected file to open it again. Every file gets its own key. |
-| **Keys** | Every key, PDF password and hidden-details record, listed by file name and searchable. Copy, export, import, or show the protected file in Finder or File Explorer. |
+| **Safe Photos** | Open a photo to remove the hidden details phones record, such as the GPS location, camera and date. Drag across faces, name tags or signs to blur them, then save a safe copy. |
+| **Keys** | Every key, PDF password and hidden-details record, listed by file name and searchable. Copy, export, import, or show the protected file in Finder or File Explorer. Set a delete date so a key is destroyed when it is no longer needed. |
 
 Example:
 
@@ -57,9 +58,16 @@ These are the *special categories* that the law treats as sensitive: **NDPA 2023
 
 Spreadsheet columns with headings such as *religion*, *ethnicity*, *diagnosis*, *HIV status*, *disability* or *incident* are suggested as **hide the whole value**.
 
+### Details that can still identify someone
+
+Hiding the name is not always enough. The app also warns about:
+
+- **Descriptions in text** that point to one person: "the only blind woman in the camp", "the village head", "wife of the chief imam". They are listed unticked under *Identifying description* for staff to decide, like protected topics.
+- **Spreadsheet rows that stand out.** After the columns are chosen, the app counts rows whose mix of visible columns (age, sex, number of children and so on) is shared by fewer than 3 people. Staff see which columns make people stand out and can choose **Change Columns** to hide one of them.
+
 ### What cannot be found automatically
 
-Photos, voice recordings, handwriting, and descriptions that identify someone without naming them ("the only blind woman in Camp B") cannot be recognised in text. This is why **a person always reviews** the highlighted text before anything is copied. The full catalogue is in [`privacy_helper/core/pii.py`](privacy_helper/core/pii.py).
+Voice recordings, handwriting, faces in photos (staff mark them by hand in Safe Photos), and identifying descriptions worded in ways the app's list does not cover cannot be recognised automatically. This is why **a person always reviews** the highlighted text before anything is copied. The full catalogue is in [`privacy_helper/core/pii.py`](privacy_helper/core/pii.py).
 
 ### How details are found
 
@@ -76,6 +84,8 @@ Settings hold an organisation-wide "always hide" list and a "never hide" list.
 
 - **Key vault.** One file in the user's app-data folder, readable only by that user. It is encrypted with AES-256-GCM under a key derived from the master password with scrypt (N=2^17, r=8, p=1). It is written atomically and the previous copy is kept, so a crash cannot lose keys. After a password change, the kept copy is re-saved under the new password. Only one copy of the app runs per user, so two windows can never overwrite each other's keys.
 - **Auto-lock.** The vault locks after a period of no activity (10 minutes by default). Open text and the key list are cleared from the screen. Locking waits for any file being encrypted to finish.
+- **Delete dates.** In **Settings › Security**, hidden-details records and file keys can be destroyed automatically after a number of days (off by default). Once a hidden-details record is gone, the AI's replies can no longer be filled in, so the people in them stay hidden for good. Once a file key is gone, that file can never be opened. Expired keys are destroyed when the vault is next unlocked, from the vault and from its kept previous copy. Backups made earlier still hold them.
+- **Safe photos.** A photo is redrawn into a brand-new image, so EXIF, GPS, XMP and PNG text are not carried over. The phone's rotation is applied first. Blurred areas become about 6 × 6 blocks. The original is never changed.
 - **Encrypted files (`.nph`).** Each file has its own random 256-bit key. Contents are encrypted with AES-256-GCM in 1 MB chunks. Each chunk is authenticated together with the file header, its position and an end-of-file flag, so tampering, reordering or truncation is detected. The format is byte-identical on Windows and macOS.
 - **Locked PDFs.** Standard PDF AES-256 encryption with a random 20-character password and a separate random owner password.
 - **Keys are saved before files are written.** A protected file can never exist without its key. Originals are never changed or deleted.

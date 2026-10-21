@@ -14,7 +14,7 @@ import os
 import secrets
 import shutil
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from cryptography.exceptions import InvalidTag
@@ -52,7 +52,7 @@ def _derive(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
                           maxmem=256 * 1024 * 1024, dklen=32)
 
 
-def _owner_only(*paths: Path) -> None:
+def owner_only(*paths: Path) -> None:
     """Only the signed-in user may read the vault (macOS; Windows AppData is already per user)."""
     if os.name == "posix":
         for p in paths:
@@ -62,6 +62,11 @@ def _owner_only(*paths: Path) -> None:
 
 def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def days_from_today(days: int) -> str:
+    """The delete date for a key kept this many days. 0 means keep it until deleted by hand."""
+    return (date.today() + timedelta(days=days)).isoformat() if days > 0 else ""
 
 
 @dataclass
@@ -74,6 +79,7 @@ class Entry:
     mapping: dict[str, str] = field(default_factory=dict)
     source: str = ""                 # where the original file was
     output: str = ""                 # where the protected file was saved
+    expires: str = ""                # ISO date the key is destroyed on; empty: kept until deleted by hand
 
 
 @dataclass
@@ -84,6 +90,9 @@ class Settings:
     suggest_names: bool = True
     lock_minutes: int = 10
     output_folder: str = ""          # empty: save next to the original
+    # Days new keys are kept before they are destroyed. 0 keeps them until deleted by hand.
+    mask_days: int = 0               # hidden-details records: after this, replies can no longer be restored
+    file_days: int = 0               # file keys and PDF passwords: after this, the files can never be opened
 
 
 class Vault:
@@ -112,11 +121,16 @@ class Vault:
     def unlock(self, password: str) -> None:
         outer = self._read_outer(self.path)
         kdf = outer["kdf"]
-        key = _derive(password, _unb64(kdf["salt"]), kdf["n"], kdf["r"], kdf["p"])
+        # A changed or damaged file must not be able to weaken the key or ask for unlimited memory.
+        if not (2**14 <= kdf.get("n", 0) <= 2**20 and 1 <= kdf.get("r", 0) <= 16 and 1 <= kdf.get("p", 0) <= 4):
+            raise VaultError("The key vault is damaged: its password settings are not valid.")
         try:
+            key = _derive(password, _unb64(kdf["salt"]), kdf["n"], kdf["r"], kdf["p"])
             inner = AESGCM(key).decrypt(_unb64(outer["nonce"]), _unb64(outer["data"]), FORMAT.encode())
         except InvalidTag:
             raise WrongPassword("That password does not open this vault.") from None
+        except (ValueError, KeyError, TypeError) as exc:
+            raise VaultError(f"The key vault is damaged: {exc}") from None
         data = json.loads(inner)
         fields = Entry.__dataclass_fields__   # ignore fields added by newer versions
         self.entries = [Entry(**{k: v for k, v in e.items() if k in fields}) for e in data.get("entries", [])]
@@ -166,14 +180,15 @@ class Vault:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Write a temp file and swap it in, keeping the previous version, so a crash never loses keys.
         tmp = self.path.with_suffix(".tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
+        tmp.unlink(missing_ok=True)   # created fresh below, private from the first byte
+        with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as f:
             json.dump(outer, f)
             f.flush()
             os.fsync(f.fileno())
         if self.path.exists():
             shutil.copy2(self.path, self.path.with_suffix(".previous"))
         os.replace(tmp, self.path)
-        _owner_only(self.path, self.path.with_suffix(".previous"))
+        owner_only(self.path, self.path.with_suffix(".previous"))
 
     def backup_to(self, target: Path) -> None:
         shutil.copy2(self.path, target)
@@ -189,6 +204,8 @@ class Vault:
 
     # ---- entries ---------------------------------------------------------
     def add(self, kind: str, label: str, entry_id: str | None = None, **fields) -> Entry:
+        days = self.settings.mask_days if kind == KIND_MASK else self.settings.file_days
+        fields.setdefault("expires", days_from_today(days))
         entry = Entry(id=entry_id or secrets.token_hex(16), kind=kind, label=label, created=now(), **fields)
         self.entries.append(entry)
         self.save()
@@ -200,6 +217,18 @@ class Vault:
     def remove(self, entry_id: str) -> None:
         self.entries = [e for e in self.entries if e.id != entry_id]
         self.save()
+
+    def purge_expired(self, today: date | None = None) -> list[str]:
+        """Destroy keys whose delete date has come. Hidden details then stay hidden for good,
+        and expired files can never be opened. Returns the labels of what was destroyed."""
+        today_iso = (today or date.today()).isoformat()
+        gone = [e for e in self.entries if e.expires and e.expires <= today_iso]
+        if gone:
+            self.entries = [e for e in self.entries if e not in gone]
+            self.save()
+            # save() keeps the previous copy as a crash guard; save again so that copy forgets the keys too.
+            self.save()
+        return [e.label for e in gone]
 
     def find_pdf_password(self, path: Path) -> list[str]:
         """Passwords that might open a locked PDF, best guesses first."""

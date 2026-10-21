@@ -61,3 +61,14 @@ def test_every_kind_can_be_switched_off():
     text = "Call 0803 555 1234, NIN 12345678901, HIV."
     assert masking.Detector(patterns=(), suggest_names=False).find(text) == []
     assert set(PATTERN_KINDS) >= {"PHONE", "ID", "SENSITIVE"}
+
+
+def test_identifying_descriptions_are_listed_for_staff():
+    text = ("She is the only blind woman in Camp B. Her husband, the village head, came with "
+            "the daughter of the chief imam. The only nurse at Kano Clinic helped.")
+    found = {d.text: (d.kind, d.enabled) for d in masking.Detector(suggest_names=False).find(text)}
+    assert found["the only blind woman"] == ("DESCRIPTION", False)     # beats the topic "blind" inside it
+    assert found["the village head"] == ("DESCRIPTION", False)
+    assert found["daughter of the chief imam"] == ("DESCRIPTION", False)
+    assert "The only nurse" in found and "Kano Clinic" not in str(found["The only nurse"])
+    assert masking.Detector(suggest_names=False).find("Only one child came.") == []   # too vague to flag

@@ -36,6 +36,7 @@ from ..core import documents
 from ..core.masking import (
     KINDS,
     PATTERN_KINDS,
+    SOURCE_CLUE,
     SOURCE_MANUAL,
     SOURCE_TOPIC,
     Detection,
@@ -46,7 +47,7 @@ from ..core.masking import (
     resolve_overlaps,
 )
 from ..core.vault import KIND_MASK, Vault
-from .common import hint, page_header, primary
+from .common import error_label, hint, page_header, primary
 
 MAX_OPEN_MB = 50   # keeps the review screen responsive
 OPEN_FILTER = "Supported files (*.txt *.md *.csv *.xlsx *.docx);;All files (*)"
@@ -147,6 +148,17 @@ class HidePage(QWidget):
         bar.addWidget(self.source_label, 1)
         lay.addLayout(bar)
 
+        # Shown for spreadsheets whose visible columns can still single someone out.
+        self.risk = QWidget()
+        risk_row = QHBoxLayout(self.risk)
+        risk_row.setContentsMargins(0, 4, 0, 4)
+        self.risk_label = error_label()
+        self.columns_btn = QPushButton("Change Columns…")
+        risk_row.addWidget(self.risk_label, 1)
+        risk_row.addWidget(self.columns_btn)
+        self.risk.hide()
+        lay.addWidget(self.risk)
+
         split = QSplitter(Qt.Orientation.Horizontal)
         self.tabs = QTabWidget()
         self.editor = DropTextEdit()
@@ -194,6 +206,7 @@ class HidePage(QWidget):
         self.paste_btn.clicked.connect(self.paste)
         self.clear_btn.clicked.connect(self.clear)
         self.add_btn.clicked.connect(self.hide_selection)
+        self.columns_btn.clicked.connect(self.change_columns)
         self.tree.itemChanged.connect(self.tree_toggled)
         self.copy_btn.clicked.connect(self.copy_safe)
         self.save_btn.clicked.connect(self.save_safe)
@@ -215,15 +228,10 @@ class HidePage(QWidget):
         try:
             if suffix in documents.TABLE_TYPES:
                 table = documents.read_table(path)
-                dialog = ColumnsDialog(table, path.name, self)
-                if dialog.exec() != QDialog.DialogCode.Accepted:
+                if ColumnsDialog(table, path.name, self).exec() != QDialog.DialogCode.Accepted:
                     return
                 self.clear()
-                self.table = table
-                detector = Detector()
-                documents.add_known_terms(table, detector)
-                self.known = dict(detector.known)
-                text = documents.table_to_text(table.headers, table.rows)
+                text = self._use_table(table)
             elif suffix in documents.SUPPORTED:
                 text = documents.load_any_text(path)
                 self.clear()
@@ -240,6 +248,31 @@ class HidePage(QWidget):
         self.editor.setPlainText(text)
         self.refresh()
 
+    def _use_table(self, table: documents.Table) -> str:
+        """Hide every value in the hidden columns, warn about rows that still stand out, return the text."""
+        self.table = table
+        detector = Detector()
+        documents.add_known_terms(table, detector)
+        self.known = dict(detector.known)
+        rare, columns = documents.rare_rows(table)
+        if rare:
+            people = f"{rare} of {len(table.rows)} rows are" if rare != 1 else f"1 of {len(table.rows)} rows is"
+            self.risk_label.setText(
+                f"{people} the only one, or one of very few, with their mix of {', '.join(columns)}. Someone who "
+                "knows the community could still tell who they are. Hide one of these columns, or group the values "
+                "(for example ages 30–39) before sharing.")
+        self.risk.setVisible(bool(rare))
+        return documents.table_to_text(table.headers, table.rows)
+
+    def change_columns(self) -> None:
+        if self.table is None:
+            return
+        if ColumnsDialog(self.table, self.source_name, self).exec() != QDialog.DialogCode.Accepted:
+            return
+        self.choices, self.session = {}, Session()
+        self.editor.setPlainText(self._use_table(self.table))
+        self.refresh()
+
     def paste(self) -> None:
         self.editor.setFocus()
         self.editor.paste()
@@ -248,6 +281,7 @@ class HidePage(QWidget):
         self.editor.clear()
         self.preview.clear()
         self.table, self.known, self.manual, self.choices = None, {}, {}, {}
+        self.risk.hide()
         self.source_name, self.source_path = "", None
         self.source_label.setText("")
         self.session = Session()
@@ -352,9 +386,12 @@ class HidePage(QWidget):
         preview_session = Session(dict(self.session.mapping))
         self.preview.setPlainText(apply(text, hidden, preview_session) if text else "")
         n = len({_norm(d.text) for d in hidden})
-        topics = len({_norm(d.text) for d in self.detections if d.source == SOURCE_TOPIC and not d.enabled})
-        note = f" · {topics} protected topic{'s' if topics != 1 else ''} left visible: check before sharing" \
-            if topics else ""
+        visible = [d for d in self.detections if d.source in (SOURCE_TOPIC, SOURCE_CLUE) and not d.enabled]
+        topics = len({_norm(d.text) for d in visible if d.source == SOURCE_TOPIC})
+        clues = len({_norm(d.text) for d in visible if d.source == SOURCE_CLUE})
+        left = [f"{topics} protected topic{'s' if topics != 1 else ''}" if topics else "",
+                f"{clues} identifying description{'s' if clues != 1 else ''}" if clues else ""]
+        note = f" · {' and '.join(x for x in left if x)} left visible: check before sharing" if topics or clues else ""
         self.count_label.setText(f"{n} detail{'s' if n != 1 else ''} will be hidden{note}" if text.strip() else "")
         ready = bool(text.strip())
         self.copy_btn.setEnabled(ready)

@@ -33,12 +33,14 @@ KINDS = {
     "DATE": "Date",
     "VEHICLE": "Vehicle plate",
     "ONLINE": "Online identifier",
+    "DESCRIPTION": "Identifying description",
     "SENSITIVE": "Protected topic",
     "OTHER": "Other",
 }
 
 # Pattern groups staff can switch on or off in Settings, by kind.
-PATTERN_KINDS = ("PHONE", "EMAIL", "ID", "ACCOUNT", "CARD", "DATE", "PLACE", "VEHICLE", "ONLINE", "SENSITIVE")
+PATTERN_KINDS = ("PHONE", "EMAIL", "ID", "ACCOUNT", "CARD", "DATE", "PLACE", "VEHICLE", "ONLINE", "SENSITIVE",
+                 "DESCRIPTION")
 
 
 def _luhn(value: str) -> bool:
@@ -211,6 +213,38 @@ _SENSITIVE_RX = [
 ]
 # Short capitalised acronyms (TB, ARV, APC) only count when written in capitals.
 _ACRONYMS = {w for words in SENSITIVE.values() for w in words if w.isupper() and len(w) <= 5}
+
+
+# Descriptions that can point to one person even with the name hidden: "the only blind woman in the camp",
+# "the village head", "wife of the imam". Someone who knows the community can tell who it is.
+# ponytail: a word list, not a model. It cannot judge how rare a description is, so staff decide each one.
+_ROLES = (r"village head|ward head|district head|community leader|traditional ruler|chief imam|imam|emir|"
+          r"oba|sarki|headmaster|headmistress|head teacher|councillor|chairman|chairwoman|"
+          r"youth leader|women leader|camp chairman|camp leader|block leader|zone leader|midwife")
+# Trigger words in any case; the words after them lowercase only, so a following name ("Kano Clinic")
+# is left to the name finder instead of being swallowed into the description.
+_WORDS = r"(?:\s+[a-z'’-]+)"
+_CLUE_RX = [   # (label, pattern, fewest words that still say something)
+    ("Only one of a kind", re.compile(
+        r"\b(?i:the only|the one (?:who|that)|the (?:woman|man|girl|boy|lady|child|widow) who)"
+        + _WORDS + "{1,5}"), 3),
+    ("Role in the community", re.compile(r"\b(?i:(?:the|our|their|a former)\s+(?:" + _ROLES + r"))\b"), 2),
+    ("Related to someone known", re.compile(
+        r"\b(?i:(?:wife|husband|son|daughter|mother|father|brother|sister|widow|child|niece|nephew)\s+of\s+the)"
+        + _WORDS + "{1,3}"), 3),
+]
+# Small words a description should not end on: "the only blind woman in" stops before "in".
+_CLUE_TAIL = re.compile(r"(?:\s+(?:in|at|on|of|from|to|with|and|or|who|that|the|a|an|is|was|has|had|her|his))+$",
+                        re.IGNORECASE)
+
+
+def find_clues(text: str):
+    """Yield (start, end, text, label) for descriptions that may identify one person."""
+    for label, rx, fewest in _CLUE_RX:
+        for m in rx.finditer(text):
+            value = _CLUE_TAIL.sub("", m.group(0))
+            if len(value.split()) >= fewest:
+                yield m.start(), m.start() + len(value), value, label
 
 
 def find_patterns(text: str, enabled: set[str]):

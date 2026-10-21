@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -23,7 +22,7 @@ from PySide6.QtWidgets import (
 from ..core import documents
 from ..core.masking import restore
 from ..core.vault import KIND_MASK, Vault
-from .common import hint, page_header, primary
+from .common import SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, primary
 from .hide_page import DropTextEdit
 
 
@@ -66,7 +65,7 @@ class RestorePage(QWidget):
         lay.addLayout(foot)
 
         self.restore_btn.clicked.connect(self.do_restore)
-        self.copy_btn.clicked.connect(lambda: QGuiApplication.clipboard().setText(self.result.toPlainText()))
+        self.copy_btn.clicked.connect(self.copy)
         self.save_btn.clicked.connect(self.save)
         self.reply.files_dropped.connect(self.load_file)
         self.reply.textChanged.connect(self._update_buttons)
@@ -107,6 +106,11 @@ class RestorePage(QWidget):
                             "No codes from this text were found in the reply. "
                             "Check that the right text is chosen above.")
         self._update_buttons()
+
+    def copy(self) -> None:
+        # The restored text holds real names: keep it out of Windows clipboard history and cloud sync too.
+        copy_secret(self.result.toPlainText())
+        self.status.setText(f"Copied. It is removed from the clipboard after {SECRET_CLEAR_SECONDS} seconds.")
 
     def save(self) -> None:
         path, _ = QFileDialog.getSaveFileName(self, "Save Restored Text", str(Path.home() / "Restored reply.docx"),

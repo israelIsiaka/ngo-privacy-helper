@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -118,6 +119,29 @@ def suggest_column(header: str, values: list[str]) -> Column:
         if re.search(_SCAN_HINTS, h) or sum(len(v) for v in sample) / len(sample) > 40:
             return Column(header, SCAN, "OTHER")
     return Column(header, KEEP, "OTHER")
+
+
+RARE_BELOW = 3   # a mix of details shared by fewer people than this can single someone out
+
+
+def rare_rows(table: Table) -> tuple[int, list[str]]:
+    """Rows that are still one of a kind once names are hidden, judged by the short columns left visible
+    (age, sex, ward, disability...). Returns how many rows, and the columns that make them stand out most.
+
+    ponytail: a plain count of matching rows (k-anonymity with k=3), not a full disclosure-risk model
+    like sdcMicro. Enough to warn staff; the fix is theirs to choose."""
+    cols = [i for i, c in enumerate(table.columns)
+            if c.role == KEEP and table.rows and sum(len(r[i]) for r in table.rows) / len(table.rows) <= 30]
+    if not cols:
+        return 0, []
+
+    def key(row: list[str]) -> tuple[str, ...]:
+        return tuple(" ".join(row[i].split()).casefold() for i in cols)
+    counts = Counter(key(r) for r in table.rows)
+    rare = sum(1 for r in table.rows if counts[key(r)] < RARE_BELOW)
+    # The columns with the most different values do the most to single people out.
+    spread = sorted(cols, key=lambda i: len({r[i].strip().casefold() for r in table.rows}), reverse=True)
+    return rare, [table.headers[i] for i in spread[:3]]
 
 
 def add_known_terms(table: Table, detector: Detector) -> None:

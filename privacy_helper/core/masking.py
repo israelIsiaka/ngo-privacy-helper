@@ -9,15 +9,18 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .pii import KINDS, PATTERN_KINDS, find_patterns, find_sensitive
+from .pii import KINDS, PATTERN_KINDS, find_clues, find_patterns, find_sensitive
 
 # Source decides who wins when two detections overlap, and what is ticked by default.
 SOURCE_KNOWN = "known"          # from the NGO's own records or always-hide list
 SOURCE_PATTERN = "pattern"      # fixed-shape details such as phone numbers
 SOURCE_MANUAL = "manual"        # staff selected it by hand
 SOURCE_SUGGESTED = "suggested"  # looks like a name; staff must confirm
+SOURCE_CLUE = "clue"            # description that may point to one person; staff decide
 SOURCE_TOPIC = "topic"          # protected topic such as health or religion; staff decide
-_PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGESTED: 3, SOURCE_TOPIC: 4}
+# A clue beats a topic inside it ("the only blind woman" over "blind"): hiding the clue hides both.
+_PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGESTED: 3, SOURCE_CLUE: 4,
+             SOURCE_TOPIC: 5}
 
 _HONORIFIC = re.compile(
     r"\b(?:Mr|Mrs|Ms|Miss|Dr|Mallam|Malam|Alhaji|Alhaja|Hajiya|Chief|Pastor|Rev|"
@@ -124,6 +127,9 @@ class Detector:
         if "SENSITIVE" in self.patterns:
             for start, end, value, topic in find_sensitive(text):
                 found.append(Detection(start, end, value, "SENSITIVE", SOURCE_TOPIC, False, topic))
+        if "DESCRIPTION" in self.patterns:
+            for start, end, value, label in find_clues(text):
+                found.append(Detection(start, end, value, "DESCRIPTION", SOURCE_CLUE, False, label))
 
         if self.suggest_names:
             for rx in (_HONORIFIC, _INTRO):

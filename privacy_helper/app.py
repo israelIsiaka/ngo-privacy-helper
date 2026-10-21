@@ -29,6 +29,7 @@ from .ui.common import APP_NAME, STYLE
 from .ui.hide_page import HidePage
 from .ui.keys_page import KeysPage
 from .ui.lock_screen import LockScreen
+from .ui.photos_page import PhotosPage
 from .ui.protect_page import ProtectPage
 from .ui.restore_page import RestorePage
 from .ui.settings_dialog import SettingsDialog
@@ -44,8 +45,10 @@ words and choose <i>Hide Selected Text</i>. Then choose <i>Copy Safe Version</i>
 on this computer only.</p>
 <p><b>Protect files.</b> Drop any file to encrypt it. PDFs can instead be locked with a password that opens in
 any PDF reader. Drop a protected file to open it again. Each file gets its own key.</p>
+<p><b>Safe photos.</b> Open a photo to remove the hidden details phones record, such as where it was taken. Drag
+across faces, name tags or signs to blur them, then save a safe copy.</p>
 <p><b>Keys.</b> Find any key by file name. To let a colleague open a file, send the file and, separately,
-its key or password.</p>
+its key or password. Set a delete date so that a key is destroyed when it is no longer needed.</p>
 <p><b>Keep your keys safe.</b> Back them up from Settings. Without your master password or a backup,
 protected files cannot be opened.</p>
 """
@@ -63,9 +66,11 @@ class MainWindow(QMainWindow):
         self.hide_page = HidePage(vault)
         self.restore_page = RestorePage(vault)
         self.protect_page = ProtectPage(vault)
+        self.photos_page = PhotosPage()
         self.keys_page = KeysPage(vault)
         self.pages = [("Hide Details", self.hide_page), ("Restore Details", self.restore_page),
-                      ("Protect Files", self.protect_page), ("Keys", self.keys_page)]
+                      ("Protect Files", self.protect_page), ("Safe Photos", self.photos_page),
+                      ("Keys", self.keys_page)]
 
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("sidebar")
@@ -177,6 +182,11 @@ class MainWindow(QMainWindow):
 
     def on_unlocked(self) -> None:
         self._set_locked(False)
+        # ponytail: expiry is checked at unlock only; auto-lock means the app is rarely open a whole day.
+        gone = self.vault.purge_expired()
+        if gone:
+            names = ", ".join(gone[:5]) + (f" and {len(gone) - 5} more" if len(gone) > 5 else "")
+            self.keys_page.status.setText(f"Keys past their delete date were destroyed: {names}.")
         self.keys_page.reload()
         self.restore_page.reload_sessions()
         self.sidebar.setCurrentRow(0)
@@ -194,7 +204,7 @@ class MainWindow(QMainWindow):
             if not auto:
                 self.protect_page.status.setText("The app will lock when the current files are finished.")
             return
-        for page in (self.hide_page, self.restore_page, self.protect_page, self.keys_page):
+        for page in (self.hide_page, self.restore_page, self.protect_page, self.photos_page, self.keys_page):
             page.clear()
         self.vault.lock()
         self.lock_screen.reset("Locked after a period of no activity. Open text was cleared for privacy."

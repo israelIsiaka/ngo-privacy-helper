@@ -17,6 +17,10 @@ a = Analysis(
     excludes=["tkinter", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtSql",
               "PySide6.QtTest", "PySide6.QtOpenGL", "PySide6.QtDBus", "PySide6.QtConcurrent"],
 )
+# Image decoders Safe Photos never uses. Fewer decoders means less code that reads untrusted files:
+# the ICNS and SVG decoders in Qt 6.8.3 have known crash bugs (CVE-2025-5683, CVE-2025-10728).
+UNUSED_IMAGE_DECODERS = re.compile(r"imageformats[/\\](lib)?q(icns|svg|tga|wbmp|pdf|macjp2|gif|ico)\.", re.I)
+a.binaries = [b for b in a.binaries if not UNUSED_IMAGE_DECODERS.search(b[0])]
 pyz = PYZ(a.pure)
 
 version_info = None
