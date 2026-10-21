@@ -29,6 +29,11 @@ def test_restore_accepts_ai_variations():
     assert text == "Dear Hadiza Ibrahim in Kano, see [PERSON_9]." and n == 2
 
 
+def test_names_at_sentence_start_are_suggested():
+    found = {d.text: d.enabled for d in masking.Detector().find("Hadiza Ibrahim needs water. The Kano Office called.")}
+    assert found == {"Hadiza Ibrahim": False, "Kano Office": False}   # listed, staff decide
+
+
 def test_never_hide_list_wins():
     det = masking.Detector({"Startbench": "OTHER"}, never=["Startbench"])
     assert det.find("Startbench helps") == []

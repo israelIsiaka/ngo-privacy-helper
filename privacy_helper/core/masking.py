@@ -57,8 +57,13 @@ _INTRO = re.compile(
     r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})",
     re.IGNORECASE,
 )
-# Two or three capitalised words in a row, not at the start of a sentence.
-_CAPS_RUN = re.compile(r"(?<=[a-z,;:)]\s)([A-Z][a-z'’-]{2,}(?:\s+[A-Z][a-z'’-]{2,}){1,2})")
+# Two to four capitalised words in a row ("Hadiza Ibrahim", "The Kano Office").
+_CAPS_RUN = re.compile(r"\b[A-Z][a-z'’-]+(?:[ \t]+[A-Z][a-z'’-]+){1,3}\b")
+# Capitalised only because they start a sentence; dropped from the front of a run.
+_LEADING = {"the", "a", "an", "this", "that", "these", "those", "she", "he", "they", "we", "our", "her", "his",
+            "their", "my", "your", "on", "in", "at", "from", "to", "for", "with", "after", "before", "when",
+            "dear", "please", "today", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday",
+            "saturday", "sunday", "and", "but", "if", "so"}
 
 PATTERN_KINDS = ("EMAIL", "PHONE", "ID", "ACCOUNT", "DATE")
 
@@ -147,9 +152,17 @@ class Detector:
                 found += [Detection(m.start(), m.end(), m.group(0), kind, SOURCE_PATTERN) for m in rx.finditer(text)]
 
         if self.suggest_names:
-            for rx, enabled in ((_HONORIFIC, True), (_INTRO, True), (_CAPS_RUN, False)):
+            for rx in (_HONORIFIC, _INTRO):
                 for m in rx.finditer(text):
-                    found.append(Detection(m.start(1), m.end(1), m.group(1), "PERSON", SOURCE_SUGGESTED, enabled))
+                    found.append(Detection(m.start(1), m.end(1), m.group(1), "PERSON", SOURCE_SUGGESTED))
+            # Other capitalised runs are listed unticked: staff decide.
+            for m in _CAPS_RUN.finditer(text):
+                start, words = m.start(), m.group(0).split()
+                while words and words[0].casefold() in _LEADING:
+                    start = text.index(words[1], start + len(words[0])) if len(words) > 1 else m.end()
+                    words = words[1:]
+                if len(words) >= 2 and len(words[0]) >= 3:
+                    found.append(Detection(start, m.end(), text[start:m.end()], "PERSON", SOURCE_SUGGESTED, False))
 
         found = [d for d in found if _norm(d.text) not in self.never]
         return resolve_overlaps(found)
