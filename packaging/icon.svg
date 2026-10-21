@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- macOS icon grid: 824px rounded square centred on a 1024 canvas -->
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="#123a63"/>
+  <path d="M512 232 L742 318 V500 C742 652 640 754 512 800 C384 754 282 652 282 500 V318 Z" fill="#ffffff"/>
+  <path d="M512 290 L692 357 V500 C692 620 615 702 512 742 Z" fill="#dce8f5"/>
+  <circle cx="512" cy="470" r="58" fill="#123a63"/>
+  <path d="M484 500 H540 L556 640 H468 Z" fill="#123a63"/>
+</svg>

@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+.pytest_cache/
+.DS_Store
+*.nph
+*.vault
