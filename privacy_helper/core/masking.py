@@ -24,10 +24,10 @@ _PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGES
 
 _HONORIFIC = re.compile(
     r"\b(?:Mr|Mrs|Ms|Miss|Dr|Mallam|Malam|Alhaji|Alhaja|Hajiya|Chief|Pastor|Rev|"
-    r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})"
+    r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})"
 )
 _INTRO = re.compile(
-    r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})",
+    r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})",
     re.IGNORECASE,
 )
 # Two to four capitalised words in a row ("Hadiza Ibrahim", "The Kano Office").
@@ -36,7 +36,12 @@ _CAPS_RUN = re.compile(r"\b[A-Z][a-z'’-]+(?:[ \t]+[A-Z][a-z'’-]+){1,3}\b")
 _LEADING = {"the", "a", "an", "this", "that", "these", "those", "she", "he", "they", "we", "our", "her", "his",
             "their", "my", "your", "on", "in", "at", "from", "to", "for", "with", "after", "before", "when",
             "dear", "please", "today", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday",
-            "saturday", "sunday", "and", "but", "if", "so"}
+            "saturday", "sunday", "and", "but", "if", "so", "also", "then", "by", "of", "about", "as",
+            "i", "it", "there", "during", "because", "while", "although", "according",
+            # ponytail: verbs that start case notes ("Met Amina Yusuf"). Not "Said" or "Will": also names.
+            "met", "saw", "visited", "called", "asked", "told", "spoke", "informed", "referred", "contacted",
+            "interviewed", "accompanied", "attended", "found", "gave", "brought", "took", "helped", "supported",
+            "thanked", "thank", "thanks", "hello", "hi", "ask", "tell", "call", "contact", "refer", "remind"}
 
 _TOKEN = re.compile(r"\[\s*(" + "|".join(KINDS) + r")[ _](\d+)\s*\]|\b(" + "|".join(KINDS) + r")_(\d+)\b",
                     re.IGNORECASE)

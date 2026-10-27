@@ -200,3 +200,28 @@ def test_rows_that_still_stand_out_are_counted(tmp_path: Path):
     assert documents.rare_rows(table)[0] == 1                    # ...she is the only one with 7 children
     table.columns[3].role = documents.HIDE
     assert documents.rare_rows(table) == (0, ["Sex"])
+
+
+def test_names_stop_at_the_end_of_the_line():
+    found = [d.text for d in masking.Detector().find("Name: Mrs Hadiza Ibrahim\nPhone: 0803 555 1234\n"
+                                                     "Called Amina Yusuf\nAddress: Block C")]
+    assert found == ["Mrs Hadiza Ibrahim", "0803 555 1234", "Amina Yusuf"]
+
+
+def test_word_files_without_a_header_are_read(tmp_path: Path):
+    from docx import Document
+    doc = Document()
+    doc.add_paragraph("Hadiza Ibrahim needs water.")
+    doc.save(str(tmp_path / "plain.docx"))
+    doc.sections[0].header.paragraphs[0].text = "Hope Bridge Foundation"
+    doc.save(str(tmp_path / "header.docx"))
+    plain = Document(str(tmp_path / "plain.docx"))
+    assert [p.text for p in documents._docx_paragraphs(plain)] == ["Hadiza Ibrahim needs water."]
+    assert plain.sections[0].header.is_linked_to_previous      # reading did not add a header
+    assert "Hope Bridge Foundation" in documents.read_docx_text(tmp_path / "header.docx")
+
+
+def test_sentence_start_verbs_are_not_part_of_a_name():
+    text = "Met Amina Yusuf at the clinic. Visited Musa Garba. Spoke To Hadiza Ibrahim. Grace Adeyemi came."
+    found = [d.text for d in masking.Detector().find(text)]
+    assert found == ["Amina Yusuf", "Musa Garba", "Hadiza Ibrahim", "Grace Adeyemi"]

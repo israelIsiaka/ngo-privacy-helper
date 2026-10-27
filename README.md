@@ -8,7 +8,7 @@ Everything happens on the staff member's computer. There is no server, no accoun
 
 | Section | What staff do |
 |---|---|
-| **Hide Details** | Paste a case note, or open a Word, Excel, CSV or text file. Personal details and protected topics (see the list below) are found and listed for review. Untick anything that is safe, select anything missed, then copy the safe version into any AI tool. |
+| **Hide Details** | Paste a case note, or open a Word, Excel, CSV or text file. Personal details and protected topics (see the list below) are found and listed for review. Untick anything that is safe, select anything missed, then copy the safe version, or save it as a Word, Excel, CSV or text file (the same type as the original) to upload to any AI tool. |
 | **Restore Details** | Paste the AI's reply. Codes such as `[PERSON_1]` are replaced with the real details again. Works days later, because the codes are kept in the key vault. |
 | **Protect Files** | Drop any file to encrypt it (`.nph`), or lock a PDF with a password that opens in any PDF reader. Drop a protected file to open it again. Every file gets its own key. |
 | **Safe Photos** | Open a photo to remove the hidden details phones record, such as the GPS location, camera and date. Drag across faces, name tags or signs to blur them, then save a safe copy. |

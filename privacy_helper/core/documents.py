@@ -184,7 +184,10 @@ def _docx_paragraphs(doc):
                 yield from cell.paragraphs
     for section in doc.sections:
         for part in (section.header, section.footer):
-            yield from part.paragraphs
+            # A linked part has no text of its own. Reading it anyway makes python-docx create one from a
+            # template file the packaged app does not have.
+            if not part.is_linked_to_previous:
+                yield from part.paragraphs
 
 
 def read_docx_text(path: Path) -> str:
