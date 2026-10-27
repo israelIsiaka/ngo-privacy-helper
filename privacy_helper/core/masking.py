@@ -36,7 +36,12 @@ _CAPS_RUN = re.compile(r"\b[A-Z][a-z'’-]+(?:[ \t]+[A-Z][a-z'’-]+){1,3}\b")
 _LEADING = {"the", "a", "an", "this", "that", "these", "those", "she", "he", "they", "we", "our", "her", "his",
             "their", "my", "your", "on", "in", "at", "from", "to", "for", "with", "after", "before", "when",
             "dear", "please", "today", "yesterday", "monday", "tuesday", "wednesday", "thursday", "friday",
-            "saturday", "sunday", "and", "but", "if", "so"}
+            "saturday", "sunday", "and", "but", "if", "so", "also", "then", "by", "of", "about", "as",
+            "i", "it", "there", "during", "because", "while", "although", "according",
+            # ponytail: verbs that start case notes ("Met Amina Yusuf"). Not "Said" or "Will": also names.
+            "met", "saw", "visited", "called", "asked", "told", "spoke", "informed", "referred", "contacted",
+            "interviewed", "accompanied", "attended", "found", "gave", "brought", "took", "helped", "supported",
+            "thanked", "thank", "thanks", "hello", "hi", "ask", "tell", "call", "contact", "refer", "remind"}
 
 _TOKEN = re.compile(r"\[\s*(" + "|".join(KINDS) + r")[ _](\d+)\s*\]|\b(" + "|".join(KINDS) + r")_(\d+)\b",
                     re.IGNORECASE)

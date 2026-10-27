@@ -219,3 +219,9 @@ def test_word_files_without_a_header_are_read(tmp_path: Path):
     assert [p.text for p in documents._docx_paragraphs(plain)] == ["Hadiza Ibrahim needs water."]
     assert plain.sections[0].header.is_linked_to_previous      # reading did not add a header
     assert "Hope Bridge Foundation" in documents.read_docx_text(tmp_path / "header.docx")
+
+
+def test_sentence_start_verbs_are_not_part_of_a_name():
+    text = "Met Amina Yusuf at the clinic. Visited Musa Garba. Spoke To Hadiza Ibrahim. Grace Adeyemi came."
+    found = [d.text for d in masking.Detector().find(text)]
+    assert found == ["Amina Yusuf", "Musa Garba", "Hadiza Ibrahim", "Grace Adeyemi"]
