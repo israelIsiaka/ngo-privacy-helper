@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # every Monday, so newly published vulnerabilities are caught without a push
 
 permissions:
   contents: read
@@ -22,6 +24,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
+          check-latest: true      # newest 3.12 security release, not the runner's cached copy
       - run: python -m pip install -r requirements-dev.txt
       - name: Lint (style and security rules)
         run: python -m ruff check .
