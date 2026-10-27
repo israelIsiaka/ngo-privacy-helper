@@ -26,6 +26,8 @@ _HONORIFIC = re.compile(
     r"\b(?:Mr|Mrs|Ms|Miss|Dr|Mallam|Malam|Alhaji|Alhaja|Hajiya|Chief|Pastor|Rev|"
     r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})"
 )
+_TITLE = re.compile(r"^(?:mr|mrs|ms|miss|dr|mallam|malam|alhaji|alhaja|hajiya|chief|pastor|rev|madam|mama|baba|"
+                    r"barr|engr|prof)\.?\s+")
 _INTRO = re.compile(
     r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})",
     re.IGNORECASE,
@@ -162,7 +164,15 @@ def resolve_overlaps(found: list[Detection]) -> list[Detection]:
     for d in found:
         if all(d.end <= t.start or d.start >= t.end for t in taken):
             taken.append(d)
+    # One name, one decision: "Hajiya Fatima Bello" is ticked, so "Fatima Bello" in a table must be too.
+    ticked = {_same_name(d.text) for d in taken if d.enabled}
+    for d in taken:
+        d.enabled = d.enabled or _same_name(d.text) in ticked
     return sorted(taken, key=lambda d: d.start)
+
+
+def _same_name(value: str) -> str:
+    return _TITLE.sub("", _norm(value))
 
 
 def apply(text: str, detections: list[Detection], session: Session) -> str:
