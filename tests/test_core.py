@@ -225,3 +225,13 @@ def test_sentence_start_verbs_are_not_part_of_a_name():
     text = "Met Amina Yusuf at the clinic. Visited Musa Garba. Spoke To Hadiza Ibrahim. Grace Adeyemi came."
     found = [d.text for d in masking.Detector().find(text)]
     assert found == ["Amina Yusuf", "Musa Garba", "Hadiza Ibrahim", "Grace Adeyemi"]
+
+
+def test_a_name_ticked_once_is_hidden_everywhere():
+    text = ("The caseworker visited with Hajiya Fatima Bello. Name: Mrs Hadiza Ibrahim\n"
+            "Need,Who\nDisability support,Fatima Bello\nHealth,Hadiza Ibrahim\n")
+    found = masking.Detector().find(text)
+    assert {d.text: d.enabled for d in found if "Bello" in d.text or "Hadiza" in d.text} == \
+        {"Fatima Bello": True, "Mrs Hadiza Ibrahim": True, "Hadiza Ibrahim": True}
+    safe = masking.apply(text, found, masking.Session())
+    assert "Bello" not in safe and "Hadiza" not in safe

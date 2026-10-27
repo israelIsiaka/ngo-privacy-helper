@@ -63,3 +63,41 @@ def test_column_titles_are_not_listed_as_names(tmp_path: Path, monkeypatch):
     found = {d.text for d in page.detections}
     assert "Full Name" not in found and "Health Condition" not in found
     assert {"Hadiza Ibrahim", "Amina Yusuf"} <= found
+
+
+def test_ai_reply_files_are_restored_and_saved_as_the_same_type(tmp_path: Path, monkeypatch):
+    """The AI hands back a Word or Excel file; restoring gives the same type with the real details in it."""
+    from docx import Document
+    from openpyxl import Workbook, load_workbook
+
+    from privacy_helper.core.vault import KIND_MASK
+    from privacy_helper.ui import restore_page
+    vault = Vault(tmp_path / "keys.vault")
+    vault.create("long enough password")
+    vault.add(KIND_MASK, "register", mapping={"PERSON_1": "Hadiza Ibrahim", "PLACE_1": "Block C, Gusau"})
+    xlsx = tmp_path / "reply.xlsx"
+    wb = Workbook()
+    wb.active.append(["Name", "Address", "Next step"])
+    wb.active.append(["[PERSON_1]", "[PLACE_1]", "Visit [PERSON_1]"])
+    wb.save(xlsx)
+    docx = tmp_path / "letter.docx"
+    doc = Document()
+    doc.add_paragraph("Dear [PERSON_1], we will visit you at [PLACE_1].")
+    doc.save(str(docx))
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda parent, title, start, filt: (start, "")))
+    page = restore_page.RestorePage(vault)
+    page.reload_sessions()
+
+    page.load_file([xlsx])
+    page.do_restore()
+    assert page.save_btn.text() == "Save as Excel File…"
+    page.save()
+    rows = list(load_workbook(tmp_path / "reply (restored).xlsx").active.values)
+    assert rows[1] == ("Hadiza Ibrahim", "Block C, Gusau", "Visit Hadiza Ibrahim")   # the comma stays in its cell
+
+    page.load_file([docx])
+    page.do_restore()
+    assert page.save_btn.text() == "Save as Word File…"
+    page.save()
+    assert documents.read_docx_text(tmp_path / "letter (restored).docx") == \
+        "Dear Hadiza Ibrahim, we will visit you at Block C, Gusau."
