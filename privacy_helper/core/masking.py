@@ -24,10 +24,10 @@ _PRIORITY = {SOURCE_MANUAL: 0, SOURCE_KNOWN: 1, SOURCE_PATTERN: 2, SOURCE_SUGGES
 
 _HONORIFIC = re.compile(
     r"\b(?:Mr|Mrs|Ms|Miss|Dr|Mallam|Malam|Alhaji|Alhaja|Hajiya|Chief|Pastor|Rev|"
-    r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})"
+    r"Madam|Mama|Baba|Barr|Engr|Prof)\.?\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})"
 )
 _INTRO = re.compile(
-    r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:\s+[A-Z][a-z'’-]+){0,2})",
+    r"\b(?:my name is|named|called|name:)\s+((?:[A-Z][a-z'’-]+)(?:[ \t]+[A-Z][a-z'’-]+){0,2})",
     re.IGNORECASE,
 )
 # Two to four capitalised words in a row ("Hadiza Ibrahim", "The Kano Office").

@@ -200,3 +200,9 @@ def test_rows_that_still_stand_out_are_counted(tmp_path: Path):
     assert documents.rare_rows(table)[0] == 1                    # ...she is the only one with 7 children
     table.columns[3].role = documents.HIDE
     assert documents.rare_rows(table) == (0, ["Sex"])
+
+
+def test_names_stop_at_the_end_of_the_line():
+    found = [d.text for d in masking.Detector().find("Name: Mrs Hadiza Ibrahim\nPhone: 0803 555 1234\n"
+                                                     "Called Amina Yusuf\nAddress: Block C")]
+    assert found == ["Mrs Hadiza Ibrahim", "0803 555 1234", "Amina Yusuf"]
