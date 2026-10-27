@@ -1,4 +1,4 @@
-"""Hide details: paste or open text, review what was found, copy the safe version."""
+"""Hide details: paste or open text, review what was found, copy or save the safe version."""
 
 from __future__ import annotations
 
@@ -135,7 +135,7 @@ class HidePage(QWidget):
         lay.setContentsMargins(28, 24, 28, 20)
         lay.addWidget(page_header("Hide details",
                                   "Paste a case note or open a file. Check what was found, then copy the safe "
-                                  "version into your AI tool."))
+                                  "version, or save it as a file to upload to your AI tool."))
 
         bar = QHBoxLayout()
         self.open_btn = QPushButton("Open File…")
@@ -191,7 +191,7 @@ class HidePage(QWidget):
 
         foot = QHBoxLayout()
         self.count_label = QLabel("")
-        self.save_btn = QPushButton("Save Safe Copy…")
+        self.save_btn = QPushButton("Save as Word File…")
         self.copy_btn = primary(QPushButton("Copy Safe Version"))
         foot.addWidget(self.count_label, 1)
         foot.addWidget(self.save_btn)
@@ -396,6 +396,7 @@ class HidePage(QWidget):
         ready = bool(text.strip())
         self.copy_btn.setEnabled(ready)
         self.save_btn.setEnabled(ready)
+        self.save_btn.setText(f"Save as {self._save_format()[0]} File…")
 
     # ---- output ------------------------------------------------------------
     def safe_text(self) -> str:
@@ -419,14 +420,21 @@ class HidePage(QWidget):
         QGuiApplication.clipboard().setText(self.safe_text())
         self.count_label.setText("Safe version copied. Paste it into your AI tool.")
 
+    def _save_format(self) -> tuple[str, str, str]:
+        """(name, suffix, file filter) for the safe file: the same type as the file it came from."""
+        if self.table is None:
+            if self.source_path and self.source_path.suffix.lower() == ".txt":
+                return "Text", ".txt", "Text file (*.txt);;Word document (*.docx)"
+            return "Word", ".docx", "Word document (*.docx);;Text file (*.txt)"
+        if self.source_path and self.source_path.suffix.lower() == ".csv":
+            return "CSV", ".csv", "CSV file (*.csv);;Excel workbook (*.xlsx)"
+        return "Excel", ".xlsx", "Excel workbook (*.xlsx);;CSV file (*.csv)"
+
     def save_safe(self) -> None:
         stem = Path(self.source_name).stem if self.source_name else f"Safe copy {datetime.now():%Y-%m-%d %H%M}"
-        if self.table is not None:
-            default, filt = f"{stem} (safe).csv", "CSV file (*.csv);;Excel workbook (*.xlsx)"
-        else:
-            default, filt = f"{stem} (safe).docx", "Word document (*.docx);;Text file (*.txt)"
-        start = str((self.source_path.parent if self.source_path else Path.home()) / default)
-        path, _ = QFileDialog.getSaveFileName(self, "Save Safe Copy", start, filt)
+        name, suffix, filt = self._save_format()
+        start = str((self.source_path.parent if self.source_path else Path.home()) / f"{stem} (safe){suffix}")
+        path, _ = QFileDialog.getSaveFileName(self, f"Save as {name} File", start, filt)
         if not path:
             return
         path = Path(path)
@@ -442,7 +450,7 @@ class HidePage(QWidget):
         except OSError as exc:
             QMessageBox.warning(self, "Could Not Save", f"{path.name} could not be saved: {exc}")
             return
-        self.count_label.setText(f"Saved {path.name}")
+        self.count_label.setText(f"Saved {path.name}. Upload it to your AI tool, or copy the safe version.")
 
     def has_work(self) -> bool:
         return bool(self.editor.toPlainText().strip())

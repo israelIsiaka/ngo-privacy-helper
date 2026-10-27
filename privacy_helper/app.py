@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         file_menu = bar.addMenu("&File")
         open_a = self._action("&Open File to Hide Details…", self.open_to_hide, QKeySequence.StandardKey.Open)
         protect_a = self._action("&Protect Files…", self.choose_to_protect, "Ctrl+Shift+O")
-        save_a = self._action("&Save Safe Copy…", self.hide_page.save_safe, QKeySequence.StandardKey.Save)
+        save_a = self._action("&Save Safe File…", self.hide_page.save_safe, QKeySequence.StandardKey.Save)
         settings_a = self._action("Se&ttings…", self.open_settings, QKeySequence.StandardKey.Preferences,
                                   QAction.MenuRole.PreferencesRole)
         quit_a = self._action("&Quit" if sys.platform == "darwin" else "E&xit", QApplication.quit,
