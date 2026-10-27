@@ -8,7 +8,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, QStandardPaths, Qt, QTimer
+from PySide6.QtCore import QEvent, QObject, QSize, QStandardPaths, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
@@ -79,6 +79,9 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         for title, page in self.pages:
             self.sidebar.addItem(title)
+            # Not every style makes rows tall enough for the item padding in STYLE; without this the
+            # highlight spills onto the next row (seen with Fusion, which Windows and Linux can use).
+            self.sidebar.item(self.sidebar.count() - 1).setSizeHint(QSize(0, self.sidebar.fontMetrics().height() + 20))
             self.stack.addWidget(page)
         self.sidebar.currentRowChanged.connect(self.stack.setCurrentIndex)
 
