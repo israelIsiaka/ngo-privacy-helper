@@ -51,3 +51,15 @@ def test_safe_file_is_saved_as_the_same_type(tmp_path: Path, monkeypatch):
     page.save_safe()
     text = documents.read_docx_text(tmp_path / "report (safe).docx")
     assert "[PERSON_1]" in text and "Hadiza" not in text and "0803" not in text
+
+
+def test_column_titles_are_not_listed_as_names(tmp_path: Path, monkeypatch):
+    csv_file = tmp_path / "people.csv"
+    csv_file.write_text("Full Name,Health Condition,Notes\nHadiza Ibrahim,Diabetes,visited by Amina Yusuf\n",
+                        encoding="utf-8")
+    monkeypatch.setattr(hide_page.ColumnsDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    page = _page(tmp_path)
+    page.open_path(csv_file)
+    found = {d.text for d in page.detections}
+    assert "Full Name" not in found and "Health Condition" not in found
+    assert {"Hadiza Ibrahim", "Amina Yusuf"} <= found

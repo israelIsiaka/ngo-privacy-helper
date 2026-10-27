@@ -291,7 +291,9 @@ class HidePage(QWidget):
     def detector(self) -> Detector:
         s = self.vault.settings
         patterns = tuple(k for k in PATTERN_KINDS if k not in s.off_patterns)
-        det = Detector(never=s.never_hide, patterns=patterns, suggest_names=s.suggest_names)
+        # Column titles ("Full Name", "Health Condition") describe the data; they are not details to hide.
+        never = s.never_hide + (self.table.headers if self.table is not None else [])
+        det = Detector(never=never, patterns=patterns, suggest_names=s.suggest_names)
         for term in s.always_hide:
             det.add_known(term, "OTHER")
         for term, kind in self.known.items():
