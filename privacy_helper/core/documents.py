@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +19,8 @@ from .masking import Detector
 TEXT_TYPES = {".txt", ".md"}
 TABLE_TYPES = {".csv", ".xlsx"}
 WORD_TYPES = {".docx"}
-SUPPORTED = TEXT_TYPES | TABLE_TYPES | WORD_TYPES
+PDF_TYPES = {".pdf"}
+SUPPORTED = TEXT_TYPES | TABLE_TYPES | WORD_TYPES | PDF_TYPES
 
 # Column roles
 HIDE = "hide"   # whole value is a detail
@@ -71,13 +73,39 @@ def read_text_file(path: Path) -> str:
     return raw.decode("latin-1")
 
 
-def read_table(path: Path) -> Table:
+def _sheet_grid(sheet) -> list[list[str]]:
+    return [["" if v is None else str(v) for v in row] for row in sheet.iter_rows(values_only=True)]
+
+
+def sheet_names(path: Path) -> list[str]:
+    """The sheets of an Excel file that have something in them, hidden sheets included."""
     path = Path(path)
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(path, read_only=True, data_only=True)
+        try:
+            return [s.title for s in wb.worksheets if any(c.strip() for r in _sheet_grid(s) for c in r)]
+        finally:
+            wb.close()
+    except Exception as exc:  # openpyxl raises many types for damaged files
+        raise FileReadError(f"{path.name} could not be read: {exc}") from None
+
+
+def read_table(path: Path, sheet: str | None = None) -> Table:
+    """Read a CSV or one Excel sheet: the one named, otherwise the first with something in it."""
+    path = Path(path)
+    if path.suffix.lower() == ".xlsx" and sheet is None:
+        sheet = next(iter(sheet_names(path)), None)
+        if sheet is None:
+            raise FileReadError(f"{path.name} is empty.")
     try:
         if path.suffix.lower() == ".xlsx":
             from openpyxl import load_workbook
-            sheet = load_workbook(path, read_only=True, data_only=True).worksheets[0]
-            grid = [["" if v is None else str(v) for v in row] for row in sheet.iter_rows(values_only=True)]
+            wb = load_workbook(path, read_only=True, data_only=True)
+            try:
+                grid = _sheet_grid(wb[sheet])
+            finally:
+                wb.close()
         else:
             text = read_text_file(path)
             try:
@@ -176,18 +204,28 @@ def save_table(path: Path, headers: list[str], rows: list[list[str]]) -> None:
 
 
 # ---- Word -------------------------------------------------------------------
-def _docx_paragraphs(doc):
-    yield from doc.paragraphs
-    for table in doc.tables:
-        for row in table.rows:
+def _block_paragraphs(container):
+    """Paragraphs in reading order, going into tables (and tables inside tables) where they stand."""
+    for block in container.iter_inner_content():
+        if not hasattr(block, "rows"):
+            yield block
+            continue
+        seen = set()   # a merged cell is returned once for every row and column it spans
+        for row in block.rows:
             for cell in row.cells:
-                yield from cell.paragraphs
+                if cell._tc not in seen:
+                    seen.add(cell._tc)
+                    yield from _block_paragraphs(cell)
+
+
+def _docx_paragraphs(doc):
+    yield from _block_paragraphs(doc)
     for section in doc.sections:
         for part in (section.header, section.footer):
             # A linked part has no text of its own. Reading it anyway makes python-docx create one from a
             # template file the packaged app does not have.
             if not part.is_linked_to_previous:
-                yield from part.paragraphs
+                yield from _block_paragraphs(part)
 
 
 def read_docx_text(path: Path) -> str:
@@ -214,8 +252,36 @@ def save_text_docx(dest: Path, text: str) -> None:
     doc.save(str(dest))
 
 
+def read_pdf_text(path: Path) -> str:
+    """The text of every page. The safe copy is saved as Word: a fresh file with no PDF metadata,
+    attachments or form fields to leak.
+
+    ponytail: no OCR, so a scanned PDF is refused rather than read; add OCR if staff mostly have scans."""
+    from pypdf import PdfReader
+    path = Path(path)
+    try:
+        reader = PdfReader(str(path))
+        # Many PDFs are encrypted only to stop editing, with an empty password to open them.
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise FileReadError(f"{path.name} is locked with a password. Open it in a PDF reader, save a copy "
+                                "without the password, then open that copy here.")
+        text = "\n\n".join((page.extract_text() or "").strip() for page in reader.pages)
+        # PDFs often store "fi" and "fl" as one ligature character, which would hide names like "Rufai".
+        text = unicodedata.normalize("NFKC", text)
+    except FileReadError:
+        raise
+    except Exception as exc:  # pypdf raises many types for damaged files
+        raise FileReadError(f"{path.name} could not be read: {exc}") from None
+    if not text.strip():
+        raise FileReadError(f"{path.name} has no text this app can read. It may be a scan or a photo of a page. "
+                            "Hide details in it with Safe Photos, or type the text out.")
+    return text
+
+
 def load_any_text(path: Path) -> str:
     suffix = Path(path).suffix.lower()
+    if suffix in PDF_TYPES:
+        return read_pdf_text(path)
     if suffix in WORD_TYPES:
         return read_docx_text(path)
     if suffix in TEXT_TYPES:

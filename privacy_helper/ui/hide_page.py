@@ -47,10 +47,10 @@ from ..core.masking import (
     resolve_overlaps,
 )
 from ..core.vault import KIND_MASK, Vault
-from .common import error_label, hint, page_header, primary
+from .common import error_label, hint, page_header, primary, read_table_asking
 
 MAX_OPEN_MB = 50   # keeps the review screen responsive
-OPEN_FILTER = "Supported files (*.txt *.md *.csv *.xlsx *.docx);;All files (*)"
+OPEN_FILTER = "Supported files (*.txt *.md *.csv *.xlsx *.docx *.pdf);;All files (*)"
 
 
 class ColumnsDialog(QDialog):
@@ -162,7 +162,7 @@ class HidePage(QWidget):
         split = QSplitter(Qt.Orientation.Horizontal)
         self.tabs = QTabWidget()
         self.editor = DropTextEdit()
-        self.editor.setPlaceholderText("Paste text here, or drop a .txt, .docx, .csv or .xlsx file.")
+        self.editor.setPlaceholderText("Paste text here, or drop a .txt, .docx, .pdf, .csv or .xlsx file.")
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
         self.tabs.addTab(self.editor, "Original")
@@ -227,7 +227,9 @@ class HidePage(QWidget):
             return
         try:
             if suffix in documents.TABLE_TYPES:
-                table = documents.read_table(path)
+                table = read_table_asking(self, path)
+                if table is None:
+                    return
                 if ColumnsDialog(table, path.name, self).exec() != QDialog.DialogCode.Accepted:
                     return
                 self.clear()
@@ -237,7 +239,7 @@ class HidePage(QWidget):
                 self.clear()
             else:
                 QMessageBox.information(self, "File Not Supported",
-                                        f"{path.name} cannot be opened here. Use a .txt, .docx, .csv or .xlsx "
+                                        f"{path.name} cannot be opened here. Use a .txt, .docx, .pdf, .csv or .xlsx "
                                         "file. To encrypt or lock other files, use Protect Files.")
                 return
         except documents.FileReadError as exc:

@@ -235,3 +235,71 @@ def test_a_name_ticked_once_is_hidden_everywhere():
         {"Fatima Bello": True, "Mrs Hadiza Ibrahim": True, "Hadiza Ibrahim": True}
     safe = masking.apply(text, found, masking.Session())
     assert "Bello" not in safe and "Hadiza" not in safe
+
+
+def test_word_text_keeps_document_order(tmp_path: Path):
+    """A table stays where it stands, a merged cell is read once, and a table inside a table is not lost."""
+    from docx import Document
+    doc = Document()
+    doc.add_paragraph("Before the table")
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).merge(table.cell(0, 1)).text = "Merged title"
+    table.cell(1, 0).text = "Hadiza Ibrahim"
+    table.cell(1, 1).add_table(rows=1, cols=1).cell(0, 0).text = "Inner detail"
+    doc.add_paragraph("After the table")
+    doc.save(str(tmp_path / "order.docx"))
+    lines = [line for line in documents.read_docx_text(tmp_path / "order.docx").split("\n") if line]
+    assert lines == ["Before the table", "Merged title", "Hadiza Ibrahim", "Inner detail", "After the table"]
+
+
+def _two_sheet_book(path: Path) -> None:
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.active.title = "Empty"
+    wb.create_sheet("Register").append(["Full Name"])
+    wb["Register"].append(["Hadiza Ibrahim"])
+    wb.create_sheet("Hidden staff").append(["Staff"])
+    wb["Hidden staff"].append(["Musa Bello"])
+    wb["Hidden staff"].sheet_state = "hidden"
+    wb.save(path)
+
+
+def test_every_filled_excel_sheet_can_be_read(tmp_path: Path):
+    book = tmp_path / "book.xlsx"
+    _two_sheet_book(book)
+    assert documents.sheet_names(book) == ["Register", "Hidden staff"]
+    assert documents.read_table(book).rows == [["Hadiza Ibrahim"]]    # an empty first sheet is skipped
+    assert documents.read_table(book, "Hidden staff").rows == [["Musa Bello"]]
+
+
+def _pdf(path: Path, text: str | None, password: str | None = None) -> None:
+    """A one-page PDF holding text (or nothing, like a scan)."""
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+    writer = PdfWriter()
+    page = writer.add_blank_page(300, 200)
+    if text:
+        font = DictionaryObject({NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"),
+                                 NameObject("/BaseFont"): NameObject("/Helvetica")})
+        page[NameObject("/Resources")] = DictionaryObject({NameObject("/Font"): DictionaryObject(
+            {NameObject("/F1"): writer._add_object(font)})})
+        stream = DecodedStreamObject()
+        stream.set_data(f"BT /F1 12 Tf 20 100 Td ({text}) Tj ET".encode())
+        page[NameObject("/Contents")] = writer._add_object(stream)
+    if password is not None:
+        writer.encrypt(password)
+    with open(path, "wb") as f:
+        writer.write(f)
+
+
+def test_pdf_text_is_read_and_scans_and_passwords_are_refused(tmp_path: Path):
+    _pdf(tmp_path / "letter.pdf", "Dear Hadiza Ibrahim")
+    assert "Dear Hadiza Ibrahim" in documents.load_any_text(tmp_path / "letter.pdf")
+    _pdf(tmp_path / "open.pdf", "Dear Hadiza Ibrahim", password="")       # locked against editing only
+    assert "Hadiza Ibrahim" in documents.load_any_text(tmp_path / "open.pdf")
+    _pdf(tmp_path / "scan.pdf", None)
+    with pytest.raises(documents.FileReadError, match="scan"):
+        documents.load_any_text(tmp_path / "scan.pdf")
+    _pdf(tmp_path / "locked.pdf", "Dear Hadiza Ibrahim", password="secret")
+    with pytest.raises(documents.FileReadError, match="password"):
+        documents.load_any_text(tmp_path / "locked.pdf")

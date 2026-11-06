@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from ..core import documents
 from ..core.masking import restore
 from ..core.vault import KIND_MASK, Vault
-from .common import SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, primary
+from .common import SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, primary, read_table_asking
 from .hide_page import MAX_OPEN_MB, OPEN_FILTER, DropTextEdit
 
 
@@ -54,7 +54,8 @@ class RestorePage(QWidget):
 
         split = QSplitter(Qt.Orientation.Vertical)
         self.reply = DropTextEdit()
-        self.reply.setPlaceholderText("Paste the AI's reply here, or open or drop a Word, Excel, CSV or text file.")
+        self.reply.setPlaceholderText(
+            "Paste the AI's reply here, or open or drop a Word, PDF, Excel, CSV or text file.")
         self.result = QPlainTextEdit()
         self.result.setReadOnly(True)
         self.result.setPlaceholderText("The reply with real details will appear here.")
@@ -112,7 +113,9 @@ class RestorePage(QWidget):
             return
         try:
             if path.suffix.lower() in documents.TABLE_TYPES:
-                table = documents.read_table(path)
+                table = read_table_asking(self, path)
+                if table is None:
+                    return
                 text = documents.table_to_text(table.headers, table.rows)
             else:
                 text = documents.load_any_text(path)

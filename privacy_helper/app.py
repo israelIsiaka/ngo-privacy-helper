@@ -241,7 +241,8 @@ class MainWindow(QMainWindow):
         if not self.vault.unlocked:
             self.pending.append(path)
             return
-        if path.suffix.lower() in documents.SUPPORTED:
+        # A PDF opened from outside most likely needs locking before it is sent, so it goes to Protect Files.
+        if path.suffix.lower() in documents.SUPPORTED - documents.PDF_TYPES:
             self.sidebar.setCurrentRow(0)
             self.hide_page.open_path(path)
         else:
