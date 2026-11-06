@@ -3,6 +3,6 @@ PySide6-Essentials==6.8.3
 cryptography==50.0.2
 openpyxl==3.1.5
 python-docx==1.2.0
-pypdf==6.21.2
+pypdf==6.21.4
 # openpyxl uses it automatically to refuse malicious XML in spreadsheets.
 defusedxml==0.7.1

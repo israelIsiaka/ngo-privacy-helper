@@ -101,3 +101,26 @@ def test_ai_reply_files_are_restored_and_saved_as_the_same_type(tmp_path: Path, 
     page.save()
     assert documents.read_docx_text(tmp_path / "letter (restored).docx") == \
         "Dear Hadiza Ibrahim, we will visit you at Block C, Gusau."
+
+
+def test_several_sheets_ask_which_one(tmp_path: Path, monkeypatch):
+    """Staff must choose, not silently get the first sheet. Cancelling opens nothing."""
+    from openpyxl import Workbook
+    from PySide6.QtWidgets import QInputDialog
+    xlsx = tmp_path / "book.xlsx"
+    wb = Workbook()
+    wb.active.append(["Full Name"])
+    wb.active.append(["Hadiza Ibrahim"])
+    wb.create_sheet("Staff").append(["Full Name"])
+    wb["Staff"].append(["Musa Bello"])
+    wb.save(xlsx)
+    monkeypatch.setattr(hide_page.ColumnsDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    page = _page(tmp_path)
+
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("", False)))
+    page.open_path(xlsx)
+    assert page.table is None
+
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Staff", True)))
+    page.open_path(xlsx)
+    assert page.table.rows == [["Musa Bello"]]

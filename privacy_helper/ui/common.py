@@ -10,7 +10,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QMimeData, QObject, QRunnable, Qt, QThreadPool, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont, QGuiApplication, QPalette
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QInputDialog, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from ..core import documents
 
 APP_NAME = "NGO Privacy Helper"
 FILE_MANAGER = "Finder" if sys.platform == "darwin" else "File Explorer"
@@ -24,6 +26,23 @@ QFrame#dropZone { border: 2px dashed palette(mid); border-radius: 10px; backgrou
 QFrame#dropZone[active="true"] { border-color: palette(highlight); }
 QFrame#divider { color: palette(mid); }
 """
+
+
+def read_table_asking(parent: QWidget, path: Path) -> documents.Table | None:
+    """Read a table, asking which sheet when an Excel file has several. None means staff cancelled."""
+    sheet = None
+    if path.suffix.lower() == ".xlsx":
+        names = documents.sheet_names(path)
+        if len(names) > 1:
+            sheet, ok = QInputDialog.getItem(
+                parent, "Choose a Sheet",
+                f"{path.name} has {len(names)} sheets with details in them.\n"
+                "Choose one to open. The others are left out of the result,\n"
+                "so open the file again for each one you need.",
+                names, 0, False)
+            if not ok:
+                return None
+    return documents.read_table(path, sheet)
 
 
 def page_header(title: str, subtitle: str) -> QWidget:
