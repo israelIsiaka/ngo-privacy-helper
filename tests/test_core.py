@@ -295,6 +295,10 @@ def _pdf(path: Path, text: str | None, password: str | None = None) -> None:
 def test_pdf_text_is_read_and_scans_and_passwords_are_refused(tmp_path: Path):
     _pdf(tmp_path / "letter.pdf", "Dear Hadiza Ibrahim")
     assert "Dear Hadiza Ibrahim" in documents.load_any_text(tmp_path / "letter.pdf")
+    documents.save_text_pdf(tmp_path / "wrapped.pdf",
+                            "Dear Partner,\nThank you for the\nsupport this year.\nOfficer\nemeka@hb.org")
+    assert documents.read_pdf_text(tmp_path / "wrapped.pdf") == \
+        "Dear Partner,\nThank you for the support this year.\nOfficer\nemeka@hb.org"
     _pdf(tmp_path / "open.pdf", "Dear Hadiza Ibrahim", password="")       # locked against editing only
     assert "Hadiza Ibrahim" in documents.load_any_text(tmp_path / "open.pdf")
     _pdf(tmp_path / "scan.pdf", None)

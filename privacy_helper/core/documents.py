@@ -252,9 +252,31 @@ def save_text_docx(dest: Path, text: str) -> None:
     doc.save(str(dest))
 
 
+def save_text_pdf(dest: Path, text: str) -> None:
+    """Write text into a brand-new PDF, for the same reason save_text_docx starts from a blank file.
+
+    ponytail: text only, the original layout and images are not kept. Keeping the layout means editing
+    the original in place (PyMuPDF redaction, AGPL); worth it only if staff need the PDF to look the same."""
+    from PySide6.QtCore import QMarginsF, QSizeF
+    from PySide6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
+    writer = QPdfWriter(str(dest))
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    writer.setPageMargins(QMarginsF(20, 20, 20, 20), QPageLayout.Unit.Millimeter)
+    writer.setTitle("")
+    writer.setCreator("")
+    doc = QTextDocument()
+    doc.setPlainText(text)
+    # A page size makes Qt lay out the pages itself; without one it adds page numbers, which would pile up
+    # in the text each time a file goes to the AI and back.
+    page = writer.pageLayout().paintRectPoints()
+    doc.setPageSize(QSizeF(page.width(), page.height()))
+    doc.print_(writer)
+    del writer   # the file is finished when the writer goes
+
+
 def read_pdf_text(path: Path) -> str:
-    """The text of every page. The safe copy is saved as Word: a fresh file with no PDF metadata,
-    attachments or form fields to leak.
+    """The text of every page. The safe copy is a fresh file (see save_text_pdf), so the original's
+    metadata, attachments and form fields cannot leak.
 
     ponytail: no OCR, so a scanned PDF is refused rather than read; add OCR if staff mostly have scans."""
     from pypdf import PdfReader
@@ -268,6 +290,11 @@ def read_pdf_text(path: Path) -> str:
         text = "\n\n".join((page.extract_text() or "").strip() for page in reader.pages)
         # PDFs often store "fi" and "fl" as one ligature character, which would hide names like "Rufai".
         text = unicodedata.normalize("NFKC", text)
+        # Some PDF writers place each word separately, which reads back as tabs: "0803\t555\t1234".
+        text = re.sub(r"[ \t]+", " ", text)
+        # A PDF breaks lines where its page ran out. Join a line to the next one when the sentence carries on,
+        # so the text rewraps to the new page instead of leaving short lines. Emails and links stay on their own.
+        text = re.sub(r"(?<=\S) ?\n(?=[a-z])(?!\S*[@/])", " ", text)
     except FileReadError:
         raise
     except Exception as exc:  # pypdf raises many types for damaged files
