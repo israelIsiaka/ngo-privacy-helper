@@ -148,3 +148,20 @@ def test_pdf_round_trip_stays_pdf(tmp_path: Path, monkeypatch):
     back.save()
     restored = documents.read_pdf_text(tmp_path / "letter (safe) (restored).pdf")
     assert "Hadiza Ibrahim" in restored and "0803 555 1234" in restored
+
+
+def test_new_password_can_be_shown_and_warns_it_cannot_be_reset(tmp_path: Path):
+    from PySide6.QtWidgets import QLineEdit
+
+    from privacy_helper.ui.lock_screen import LockScreen
+    screen = LockScreen(Vault(tmp_path / "keys.vault"))
+    assert not screen.warning.isHidden() and "cannot be reset" in screen.warning.text()
+    screen.show_action.setChecked(True)
+    assert screen.password.echoMode() == screen.confirm.echoMode() == QLineEdit.EchoMode.Normal
+    screen.password.setText("long enough password")
+    screen.confirm.setText("long enough password")
+    screen.submit()
+    assert screen.password.echoMode() == QLineEdit.EchoMode.Password   # hidden again for next time
+    screen.reset()
+    assert screen.warning.isHidden()   # the unlock screen does not repeat it
+
