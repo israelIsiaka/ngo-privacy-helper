@@ -33,6 +33,9 @@ jobs:
       - name: Known vulnerabilities in dependencies
         run: python -m pip_audit -r requirements.txt
       - run: python -m pytest -q tests
+        env:
+          # Windows' offscreen mode has no fonts, so PDFs would come out with no text; test what staff get.
+          QT_QPA_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || 'offscreen' }}
       - name: Install Inno Setup
         if: runner.os == 'Windows'
         shell: pwsh
