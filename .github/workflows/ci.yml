@@ -17,6 +17,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20   # a test stuck on a hidden dialog fails fast instead of after 6 hours
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -30,7 +31,7 @@ jobs:
         run: python -m ruff check .
       - name: Known vulnerabilities in dependencies
         run: python -m pip_audit -r requirements.txt
-      - run: python -m pytest -q
+      - run: python -m pytest -v -o faulthandler_timeout=120
       - name: App imports cleanly
         run: python -c "import privacy_helper.app"
         env:
