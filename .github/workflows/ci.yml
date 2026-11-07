@@ -32,6 +32,9 @@ jobs:
       - name: Known vulnerabilities in dependencies
         run: python -m pip_audit -r requirements.txt
       - run: python -m pytest -v -o faulthandler_timeout=120
+        env:
+          # Windows' offscreen mode has no fonts, so PDFs would come out with no text; test what staff get.
+          QT_QPA_PLATFORM: ${{ runner.os == 'Windows' && 'windows' || 'offscreen' }}
       - name: App imports cleanly
         run: python -c "import privacy_helper.app"
         env:
