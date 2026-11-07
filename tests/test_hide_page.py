@@ -124,3 +124,44 @@ def test_several_sheets_ask_which_one(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a, **k: ("Staff", True)))
     page.open_path(xlsx)
     assert page.table.rows == [["Musa Bello"]]
+
+
+def test_pdf_round_trip_stays_pdf(tmp_path: Path, monkeypatch):
+    """A PDF comes in, a safe PDF goes to the AI, and the AI's PDF comes back with the real details."""
+    from privacy_helper.ui import restore_page
+    original = tmp_path / "letter.pdf"
+    documents.save_text_pdf(original, "Dear Mrs Hadiza Ibrahim,\nWe called 0803 555 1234 about the shelter.")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda parent, title, start, filt: (start, "")))
+    page = _page(tmp_path)
+    page.open_path(original)
+    assert page.save_btn.text() == "Save as PDF File…"
+    page.save_safe()
+    page._remember()
+    safe = documents.read_pdf_text(tmp_path / "letter (safe).pdf")
+    assert "[PERSON_1]" in safe and "Hadiza" not in safe and "0803" not in safe
+
+    back = restore_page.RestorePage(page.vault)
+    back.reload_sessions()
+    back.load_file([tmp_path / "letter (safe).pdf"])
+    back.do_restore()
+    assert back.save_btn.text() == "Save as PDF File…"
+    back.save()
+    restored = documents.read_pdf_text(tmp_path / "letter (safe) (restored).pdf")
+    assert "Hadiza Ibrahim" in restored and "0803 555 1234" in restored
+
+
+def test_new_password_can_be_shown_and_warns_it_cannot_be_reset(tmp_path: Path):
+    from PySide6.QtWidgets import QLineEdit
+
+    from privacy_helper.ui.lock_screen import LockScreen
+    screen = LockScreen(Vault(tmp_path / "keys.vault"))
+    assert not screen.warning.isHidden() and "cannot be reset" in screen.warning.text()
+    screen.show_action.setChecked(True)
+    assert screen.password.echoMode() == screen.confirm.echoMode() == QLineEdit.EchoMode.Normal
+    screen.password.setText("long enough password")
+    screen.confirm.setText("long enough password")
+    screen.submit()
+    assert screen.password.echoMode() == QLineEdit.EchoMode.Password   # hidden again for next time
+    screen.reset()
+    assert screen.warning.isHidden()   # the unlock screen does not repeat it
+

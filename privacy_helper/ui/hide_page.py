@@ -429,6 +429,8 @@ class HidePage(QWidget):
         if self.table is None:
             if self.source_path and self.source_path.suffix.lower() == ".txt":
                 return "Text", ".txt", "Text file (*.txt);;Word document (*.docx)"
+            if self.source_path and self.source_path.suffix.lower() in documents.PDF_TYPES:
+                return "PDF", ".pdf", "PDF file (*.pdf);;Word document (*.docx);;Text file (*.txt)"
             return "Word", ".docx", "Word document (*.docx);;Text file (*.txt)"
         if self.source_path and self.source_path.suffix.lower() == ".csv":
             return "CSV", ".csv", "CSV file (*.csv);;Excel workbook (*.xlsx)"
@@ -449,6 +451,8 @@ class HidePage(QWidget):
                 documents.save_table(path, grid[0], grid[1:])
             elif path.suffix.lower() == ".docx":
                 documents.save_text_docx(path, safe)
+            elif path.suffix.lower() in documents.PDF_TYPES:
+                documents.save_text_pdf(path, safe)
             else:
                 path.write_text(safe, encoding="utf-8")
         except OSError as exc:

@@ -168,6 +168,8 @@ class RestorePage(QWidget):
             return "Excel", ".xlsx", "Excel workbook (*.xlsx);;CSV file (*.csv)"
         if suffix in documents.TEXT_TYPES:
             return "Text", ".txt", "Text file (*.txt);;Word document (*.docx)"
+        if suffix in documents.PDF_TYPES:
+            return "PDF", ".pdf", "PDF file (*.pdf);;Word document (*.docx);;Text file (*.txt)"
         return "Word", ".docx", "Word document (*.docx);;Text file (*.txt)"
 
     def save(self) -> None:
@@ -183,6 +185,8 @@ class RestorePage(QWidget):
                 documents.save_table(Path(path), self.grid[0], self.grid[1:])
             elif path.lower().endswith(".docx"):
                 documents.save_text_docx(Path(path), self.result.toPlainText())
+            elif path.lower().endswith(".pdf"):
+                documents.save_text_pdf(Path(path), self.result.toPlainText())
             else:
                 Path(path).write_text(self.result.toPlainText(), encoding="utf-8")
             self.status.setText(f"Saved {Path(path).name}")
