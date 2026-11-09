@@ -46,11 +46,20 @@ from ..core.masking import (
     apply,
     resolve_overlaps,
 )
-from ..core.vault import KIND_MASK, Vault
+from ..core.vault import KIND_MASK, Settings, Vault
 from .common import error_label, hint, page_header, primary, read_table_asking
 
 MAX_OPEN_MB = 50   # keeps the review screen responsive
 OPEN_FILTER = "Supported files (*.txt *.md *.csv *.xlsx *.docx *.pdf);;All files (*)"
+
+
+def settings_detector(settings: Settings, never: list[str] = ()) -> Detector:
+    """A detector set up from Settings › Hiding."""
+    patterns = tuple(k for k in PATTERN_KINDS if k not in settings.off_patterns)
+    det = Detector(never=settings.never_hide + list(never), patterns=patterns, suggest_names=settings.suggest_names)
+    for term in settings.always_hide:
+        det.add_known(term, "OTHER")
+    return det
 
 
 class ColumnsDialog(QDialog):
@@ -291,13 +300,8 @@ class HidePage(QWidget):
 
     # ---- detection ---------------------------------------------------------
     def detector(self) -> Detector:
-        s = self.vault.settings
-        patterns = tuple(k for k in PATTERN_KINDS if k not in s.off_patterns)
         # Column titles ("Full Name", "Health Condition") describe the data; they are not details to hide.
-        never = s.never_hide + (self.table.headers if self.table is not None else [])
-        det = Detector(never=never, patterns=patterns, suggest_names=s.suggest_names)
-        for term in s.always_hide:
-            det.add_known(term, "OTHER")
+        det = settings_detector(self.vault.settings, self.table.headers if self.table is not None else [])
         for term, kind in self.known.items():
             det.add_known(term, kind)
         return det
