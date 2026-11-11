@@ -45,6 +45,7 @@ class QuickPopup(QWidget):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.vault = vault
         self.mode = HIDE
+        self.masked = False
         self.text = ""
         self.detections = []
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.close)
@@ -158,7 +159,7 @@ class QuickPopup(QWidget):
             w.setVisible(hide)
         for w in (self.from_label, self.sessions):
             w.setVisible(not hide)
-        self.copy_btn.setText("Copy Safe Version" if hide else "Copy Real Version")
+        self.copy_btn.setText("Hide Details" if hide else "Copy Real Version")
         self.copy_btn.setEnabled(False)
         self.cancel_btn.setText("Cancel")
         self.found.clear()
@@ -184,6 +185,18 @@ class QuickPopup(QWidget):
 
     # ---- hide -------------------------------------------------------------------
     def _start_hide(self) -> None:
+        # First show the copied text as it is; the details are only replaced when staff click Hide Details.
+        self.masked = False
+        self.detections = []
+        self.result.setPlainText(self.text)
+        self.found.setVisible(False)
+        self.found_label.setVisible(False)
+        self.status.setText("This is the text you copied. Click Hide Details to replace personal details with codes.")
+        self.copy_btn.setText("Hide Details")
+        self.copy_btn.setEnabled(True)
+
+    def _mask(self) -> None:
+        self.masked = True
         self.detections = settings_detector(self.vault.settings).find(self.text)
         self.found.blockSignals(True)
         seen = set()
@@ -200,7 +213,9 @@ class QuickPopup(QWidget):
         self.found.blockSignals(False)
         self.found.setVisible(bool(seen))
         self.found_label.setVisible(bool(seen))
+        self.copy_btn.setText("Copy Safe Version")
         self._show_hide()
+        self.adjustSize()
 
     def _toggled(self, item: QListWidgetItem) -> None:
         key, on = item.data(Qt.ItemDataRole.UserRole), item.checkState() == Qt.CheckState.Checked
@@ -250,6 +265,9 @@ class QuickPopup(QWidget):
 
     # ---- result -----------------------------------------------------------------
     def copy(self) -> None:
+        if self.mode == HIDE and not self.masked:
+            self._mask()
+            return
         if self.mode == HIDE:
             session = Session()
             safe = apply(self.text, [d for d in self.detections if d.enabled], session)

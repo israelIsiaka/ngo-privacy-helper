@@ -50,8 +50,9 @@ on this computer only.</p>
 any PDF reader. Drop a protected file to open it again. Each file gets its own key.</p>
 <p><b>Safe photos.</b> Open a photo to remove the hidden details phones record, such as where it was taken. Drag
 across faces, name tags or signs to blur them, then save a safe copy.</p>
-<p><b>Shortcuts in other apps.</b> Copy text anywhere and press your Hide shortcut. A small window shows what
-will be hidden and copies the safe version. Copy the AI's reply and press your Restore shortcut to fill the real
+<p><b>Shortcuts in other apps.</b> Copy text anywhere and press your Hide shortcut. A small window shows the
+text. Choose <i>Hide Details</i>, check what was found, then choose <i>Copy Safe Version</i>.
+Copy the AI's reply and press your Restore shortcut to fill the real
 details back in. Choose the keys in Settings.</p>
 <p><b>Keys.</b> Find any key by file name. To let a colleague open a file, send the file and, separately,
 its key or password. Set a delete date so that a key is destroyed when it is no longer needed.</p>
