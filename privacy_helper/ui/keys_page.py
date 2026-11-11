@@ -70,6 +70,8 @@ class KeysPage(QWidget):
         self.view.setAlternatingRowColors(True)
         head = self.view.horizontalHeader()
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # Room for the widest heading plus the sort arrow. Windows draws the arrow over the text otherwise.
+        head.setMinimumSectionSize(head.fontMetrics().horizontalAdvance("Delete on") + 40)
         for c in (1, 2, 3, 4):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.view, 1)

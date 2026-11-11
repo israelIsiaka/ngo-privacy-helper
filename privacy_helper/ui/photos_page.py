@@ -120,6 +120,8 @@ class PhotosPage(QWidget):
                         "Hidden details such as the camera, date and location are always removed.")
         self.tip.hide()
         lay.addWidget(self.tip)
+        # Takes the spare height while no photo is open, so it is not spread between the heading and the drop area.
+        lay.addStretch(0)
 
         foot = QHBoxLayout()
         self.status = hint("")
