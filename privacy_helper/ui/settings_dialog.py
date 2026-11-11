@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QInputDialog,
+    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -25,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import hotkeys
 from ..core.masking import KINDS, PATTERN_KINDS
 from ..core.vault import Vault, VaultError, WrongPassword
 from .common import hint
@@ -137,6 +141,10 @@ class SettingsDialog(QDialog):
         slay.addStretch(1)
         tabs.addTab(security, "Security")
 
+        self.shortcuts = ShortcutsForm(hotkeys.saved())
+        if hotkeys.Hotkeys.supported_here():
+            tabs.addTab(self.shortcuts, "Shortcuts")
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -151,6 +159,11 @@ class SettingsDialog(QDialog):
             self.in_folder.setChecked(True)
 
     def accept(self) -> None:
+        problem = self.shortcuts.problem()
+        if problem:
+            QMessageBox.warning(self, "Choose Another Shortcut", problem)
+            return
+        hotkeys.save(self.shortcuts.chosen())
         s = self.vault.settings
 
         def lines(edit: QPlainTextEdit) -> list[str]:
@@ -221,3 +234,77 @@ class SettingsDialog(QDialog):
         QMessageBox.information(self, "Keys Restored",
                                 "Your keys were restored. From now on, use the master password of the backup.")
         self.reject()   # the settings shown were from before the restore
+
+
+class ShortcutsForm(QWidget):
+    """Pick the keys that hide or restore copied text from any app."""
+
+    def __init__(self, current: dict, parent=None):
+        super().__init__(parent)
+        lay = QVBoxLayout(self)
+        lay.addWidget(hint("Copy text in any app, such as Word, email or a browser, then press a shortcut. A small "
+                           "window shows what will be hidden and copies the safe version for you to paste into your "
+                           "AI tool. Copy the AI's reply and press the other shortcut to fill the real details back "
+                           "in. The app never reads what you type or what is on your screen."))
+        form = QFormLayout()
+        self.edits = {}
+        for action, title in (("hide", "Hide copied text"), ("restore", "Restore copied text")):
+            edit = QKeySequenceEdit(current.get(action, QKeySequence()))
+            edit.setMaximumSequenceLength(1)
+            edit.setClearButtonEnabled(True)
+            edit.setAccessibleName(title)
+            self.edits[action] = edit
+            form.addRow(title, edit)
+        lay.addLayout(form)
+        mods = "Command, Control, Option or Shift" if sys.platform == "darwin" else "Ctrl, Alt or Shift"
+        lay.addWidget(hint(f"Click a box and press the keys you want. Use at least two of {mods} with a letter, so "
+                           "the shortcut does not take keys from other apps. Clear a box to turn that shortcut off."))
+        lay.addStretch(1)
+
+    def chosen(self) -> dict:
+        return {a: e.keySequence() for a, e in self.edits.items()}
+
+    def problem(self) -> str:
+        """Why the choice cannot be used, or an empty string."""
+        seqs = [s for s in self.chosen().values() if not s.isEmpty()]
+        for seq in seqs:
+            try:
+                hotkeys.check(seq)
+            except hotkeys.ShortcutError as exc:
+                return f"{hotkeys.label(seq)}: {exc}"
+        if len(seqs) == 2 and seqs[0] == seqs[1]:
+            return "Choose two different shortcuts."
+        return ""
+
+
+class ShortcutsDialog(QDialog):
+    """Offered once, after the master password is created."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Shortcuts for Other Apps")
+        self.form = ShortcutsForm({a: QKeySequence(k) for a, k in hotkeys.DEFAULTS.items()})
+        buttons = QDialogButtonBox()
+        buttons.addButton("Turn On Shortcuts", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Not Now", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addWidget(QLabel("<b>Hide details without opening the app</b>"))
+        lay.addWidget(self.form)
+        lay.addWidget(hint("You can change or turn these off later in Settings."))
+        lay.addWidget(buttons)
+        lay.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
+        self.form.setFixedWidth(500)   # a fixed width lets the wrapped text work out its height
+
+    def accept(self) -> None:
+        problem = self.form.problem()
+        if problem:
+            QMessageBox.warning(self, "Choose Another Shortcut", problem)
+            return
+        hotkeys.save(self.form.chosen())
+        super().accept()
+
+    def reject(self) -> None:
+        hotkeys.save({})   # remembered, so the offer is not repeated
+        super().reject()

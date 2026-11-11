@@ -12,6 +12,7 @@ Everything happens on the staff member's computer. There is no server, no accoun
 | **Restore Details** | Paste the AI's reply. Codes such as `[PERSON_1]` are replaced with the real details again. Works days later, because the codes are kept in the key vault. |
 | **Protect Files** | Drop any file to encrypt it (`.nph`), or lock a PDF with a password that opens in any PDF reader. Drop a protected file to open it again. Every file gets its own key. |
 | **Safe Photos** | Open a photo to remove the hidden details phones record, such as the GPS location, camera and date. Drag across faces, name tags or signs to blur them, then save a safe copy. |
+| **Shortcuts in other apps** | Copy text in Word, email or a browser and press the Hide shortcut. A small window shows what was found, with possible names left unticked for staff to check, and copies the safe version. Copy the AI's reply and press the Restore shortcut to fill the real details back in. Each person picks their own keys after creating their master password, or later in **Settings › Shortcuts**. |
 | **Keys** | Every key, PDF password and hidden-details record, listed by file name and searchable. Copy, export, import, or show the protected file in Finder or File Explorer. Set a delete date so a key is destroyed when it is no longer needed. |
 
 Example:
@@ -92,6 +93,7 @@ Settings hold an organisation-wide "always hide" list and a "never hide" list.
 - **Safe Word copies.** These are written as new documents, not edited copies, so tracked changes, comments and author properties from the original cannot leak.
 - **Sharing.** To let a colleague open a file, send the file and, separately (by phone or SMS), its key (`NPHKEY1:…`) or PDF password.
 - **Clipboard.** Copied keys and passwords are removed from the clipboard after 60 seconds. On Windows they are also kept out of clipboard history and cloud clipboard sync.
+- **Shortcuts in other apps.** The app registers only the two shortcuts staff choose, using `RegisterHotKey` on Windows and `RegisterEventHotKey` on macOS. It installs no keyboard hook, never sees other keys, never reads other apps' windows, and needs no Accessibility or administrator permission. Text is read from the clipboard only when a shortcut is pressed. A shortcut must use two modifier keys, so it cannot take a common key such as Ctrl+L away from other apps. If the app is locked, the window asks for the master password first. Each quick hide is saved in the key vault like any other. The safe version replaces the real text on the clipboard. The restored text is removed after 60 seconds and, on Windows, kept out of clipboard history. While shortcuts are on, closing the window keeps the app running in the menu bar or notification area. Choose Quit there to close it.
 - **Untrusted files.** File names inside encrypted files are cleaned, so they cannot write outside the chosen folder. Damaged files are rejected before memory is used. Spreadsheets are parsed with `defusedxml`.
 - **Checks on every change.** The tests (including tamper, wrong-key and false-alarm cases), the `ruff` linter with security rules, and `pip-audit` for known vulnerabilities in dependencies run on Windows and macOS for every push. Dependabot proposes dependency updates, and is held to Qt 6.8 for compatibility.
 
@@ -136,7 +138,8 @@ After editing `packaging/icon.svg`, run `python packaging/make_icons.py`.
 privacy_helper/
   core/        PII catalogue, masking, key vault, file encryption, PDF lock, file reading (no UI code)
   ui/          one module per section, plus settings and the lock screen
-  app.py       main window, menus, auto-lock, files opened from Finder or File Explorer
+  app.py       main window, menus, auto-lock, files opened from Finder or File Explorer, menu bar icon
+  hotkeys.py   shortcuts that work in other apps (Windows and macOS system calls)
 packaging/     PyInstaller recipe, Windows installer script, icons, build script
 tests/         core tests (pytest)
 ```
@@ -146,4 +149,6 @@ tests/         core tests (pytest)
 - Protected-topic lists are in English, with Nigerian terms. Add local-language words to **Always hide** in Settings.
 - Name detection is rule-based. It does not use a machine-learning model, which would add several hundred MB to the download. The NGO's own records and staff review cover most of the gap.
 - Restore works on pasted text and on `.txt` and `.docx` files. Word formatting is not kept in safe copies, by design.
+- Copying text puts it on the clipboard before the app sees it, so Windows clipboard history (Win+V) and Apple's Universal Clipboard may keep the original. Turn both off on shared computers.
+- Shortcut letters follow their position on a US keyboard. On AZERTY or QWERTZ keyboards a shortcut may use a different letter from the one shown.
 - Unsigned builds show a security warning on first launch. Code signing costs about USD 100 to 300 a year on Windows and USD 99 a year for Apple.
