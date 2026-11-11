@@ -46,6 +46,7 @@ offer.grab().save(str(out / "7 Shortcuts offer.png"))
 offer.close()
 QGuiApplication.clipboard().setText("Mrs Hadiza Ibrahim (0803 555 1234) at Zamfara Shelter needs clean water.")
 window.popup.start(HIDE)
+window.popup.copy()   # Hide Details
 app.processEvents()
 window.popup.grab().save(str(out / "8 Shortcut pop-up.png"))
 window.popup.close()

@@ -73,6 +73,10 @@ def test_quick_hide_copies_the_safe_version_and_keeps_the_codes(vault):
     popup = QuickPopup(vault)
     popup.start(HIDE)
     assert not popup.work_box.isHidden()
+    assert popup.result.toPlainText() == NOTE and popup.copy_btn.text() == "Hide Details"   # shown as copied first
+    assert not any(e.kind == KIND_MASK for e in vault.entries)
+    popup.copy()   # Hide Details
+    assert popup.copy_btn.text() == "Copy Safe Version"
     assert "[PHONE_1]" in popup.result.toPlainText() and "0803" not in popup.result.toPlainText()
     popup.copy()
     safe = QGuiApplication.clipboard().text()
@@ -87,6 +91,7 @@ def test_unticking_a_detail_leaves_it_in_the_safe_version(vault):
     QGuiApplication.clipboard().setText(NOTE)
     popup = QuickPopup(vault)
     popup.start(HIDE)
+    popup.copy()   # Hide Details
     phone = next(popup.found.item(i) for i in range(popup.found.count()) if "0803" in popup.found.item(i).text())
     phone.setCheckState(phone.checkState().__class__.Unchecked)
     assert "0803 555 1234" in popup.result.toPlainText()
@@ -124,6 +129,7 @@ def test_locked_app_asks_for_the_password_first(vault):
     popup.password.setText("long enough password")
     popup.unlock()
     assert vault.unlocked and unlocked and not popup.work_box.isHidden()
+    popup.copy()   # Hide Details
     assert "[PHONE_1]" in popup.result.toPlainText()
     popup.close()
 
