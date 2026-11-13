@@ -26,7 +26,7 @@ from ..core.vault import KIND_FILE, KIND_MASK, KIND_PDF, Vault, days_from_today,
 from .common import FILE_MANAGER, SECRET_CLEAR_SECONDS, copy_secret, hint, page_header, reveal
 
 TYPE_LABEL = {KIND_FILE: "Encrypted file", KIND_PDF: "Locked PDF", KIND_MASK: "Hidden details"}
-KEY_FILTER = "NGO Privacy Helper key (*.nphkey);;All files (*)"
+KEY_FILTER = "Encryptra key (*.nphkey);;All files (*)"
 
 
 class KeysPage(QWidget):

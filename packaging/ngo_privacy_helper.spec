@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(SPECPATH).parent
-NAME = "NGO Privacy Helper"
+NAME = "Encryptra"
 VERSION = re.search(r'"(.+)"', (ROOT / "privacy_helper" / "__init__.py").read_text()).group(1)
 BUNDLE_ID = "org.startbench.ngoprivacyhelper"
 
@@ -70,12 +70,12 @@ if sys.platform == "darwin":
             # Double-clicking a .nph file opens it in the app.
             "UTExportedTypeDeclarations": [{
                 "UTTypeIdentifier": f"{BUNDLE_ID}.encrypted",
-                "UTTypeDescription": "NGO Privacy Helper encrypted file",
+                "UTTypeDescription": "Encryptra encrypted file",
                 "UTTypeConformsTo": ["public.data"],
                 "UTTypeTagSpecification": {"public.filename-extension": ["nph"]},
             }],
             "CFBundleDocumentTypes": [{
-                "CFBundleTypeName": "NGO Privacy Helper encrypted file",
+                "CFBundleTypeName": "Encryptra encrypted file",
                 "CFBundleTypeRole": "Editor",
                 "LSHandlerRank": "Owner",
                 "LSItemContentTypes": [f"{BUNDLE_ID}.encrypted"],

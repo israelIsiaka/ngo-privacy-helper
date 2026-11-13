@@ -44,7 +44,7 @@ def read_key_id(path: Path) -> str:
     with open(path, "rb") as f:
         header = f.read(HEADER_LEN)
     if len(header) < HEADER_LEN or header[:4] != MAGIC:
-        raise DecryptError("This is not a file encrypted by NGO Privacy Helper.")
+        raise DecryptError("This is not a file encrypted by Encryptra.")
     return header[4:20].hex()
 
 
@@ -105,7 +105,7 @@ def decrypt_file(src: Path, out_dir: Path, key: bytes, progress: Progress = None
     with open(src, "rb") as fin:
         header = fin.read(HEADER_LEN)
         if len(header) < HEADER_LEN or header[:4] != MAGIC:
-            raise DecryptError("This is not a file encrypted by NGO Privacy Helper.")
+            raise DecryptError("This is not a file encrypted by Encryptra.")
         prefix = header[20:]
 
         def take(index: int) -> tuple[bytes, bool]:
@@ -155,7 +155,7 @@ def export_key(key_id: str, key: bytes) -> str:
 def parse_key(text: str) -> tuple[str, bytes]:
     parts = text.strip().split(":")
     if len(parts) != 3 or parts[0] != "NPHKEY1":
-        raise ValueError("This is not an NGO Privacy Helper key. It should start with NPHKEY1.")
+        raise ValueError("This is not an Encryptra key. It should start with NPHKEY1.")
     key_id, key = parts[1], bytes.fromhex(parts[2])
     if len(bytes.fromhex(key_id)) != 16 or len(key) != 32:
         raise ValueError("This key is incomplete. Copy the whole line and try again.")

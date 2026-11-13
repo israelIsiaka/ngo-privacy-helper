@@ -201,7 +201,7 @@ class SettingsDialog(QDialog):
                                 "Your master password was changed. Older backups still use the old password.")
 
     def backup(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Back Up Keys", str(Path.home() / "NGO Privacy Helper keys.backup"),
+        path, _ = QFileDialog.getSaveFileName(self, "Back Up Keys", str(Path.home() / "Encryptra keys.backup"),
                                               "Key backup (*.backup)")
         if path:
             try:

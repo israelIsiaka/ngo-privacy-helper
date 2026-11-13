@@ -1,4 +1,6 @@
-# NGO Privacy Helper
+# Encryptra
+
+**NGO Privacy Helper. Protect the people you serve.**
 
 A free desktop app for Windows and macOS that lets NGO staff use AI tools without exposing the people they serve, and protect sensitive files with their own keys.
 

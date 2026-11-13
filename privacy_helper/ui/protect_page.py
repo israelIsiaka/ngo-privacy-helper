@@ -136,7 +136,7 @@ class ProtectPage(QWidget):
         out_dir = self._out_dir(path)
         if path.suffix.lower() == filecrypt.SUFFIX:
             if not _readable(path):
-                raise _Skip("Not a file encrypted by NGO Privacy Helper.")
+                raise _Skip("Not a file encrypted by Encryptra.")
             key_id = filecrypt.read_key_id(path)
             entry = self.vault.get(key_id)
             key = base64.b64decode(entry.secret) if entry else self._ask_for_key(row, path, key_id)

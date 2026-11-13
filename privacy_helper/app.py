@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from . import __version__, hotkeys
 from .core import documents
 from .core.vault import Vault
-from .ui.common import APP_NAME, STYLE
+from .ui.common import APP_NAME, STORAGE_NAME, STYLE, TAGLINE
 from .ui.hide_page import HidePage
 from .ui.keys_page import KeysPage
 from .ui.lock_screen import LockScreen
@@ -40,7 +40,7 @@ from .ui.settings_dialog import SettingsDialog, ShortcutsDialog
 RESOURCES = Path(__file__).parent / "resources"   # PyInstaller keeps this layout
 
 GUIDE = """
-<h3>Using NGO Privacy Helper</h3>
+<h3>Using Encryptra</h3>
 <p><b>Hide details.</b> Paste a case note or open a Word, Excel, CSV or text file. Names, phone numbers,
 places and ID numbers are highlighted and listed on the right. Untick anything that is safe, select missed
 words and choose <i>Hide Selected Text</i>. Then choose <i>Copy Safe Version</i> and paste it into your AI tool.</p>
@@ -340,7 +340,7 @@ class MainWindow(QMainWindow):
 
     def show_about(self) -> None:
         QMessageBox.about(self, f"About {APP_NAME}",
-                          f"<h3>{APP_NAME}</h3><p>Version {__version__}</p>"
+                          f"<h3>{APP_NAME}</h3><p>{TAGLINE}</p><p>Version {__version__}</p>"
                           "<p>Hide personal details before using AI tools, and protect files with "
                           "their own keys. Everything happens on this computer.</p>"
                           "<p>Free for non-profit organisations.<br>Startbench Innovation Hub</p>")
@@ -471,7 +471,7 @@ def vault_path() -> Path:
 
 
 def main() -> int:
-    QApplication.setApplicationName(APP_NAME)
+    QApplication.setApplicationName(STORAGE_NAME)
     QApplication.setApplicationDisplayName(APP_NAME)
     QApplication.setOrganizationName("Startbench")
     QApplication.setApplicationVersion(__version__)

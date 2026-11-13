@@ -138,7 +138,7 @@ class QuickPopup(QWidget):
 
     def unlock(self) -> None:
         if not self.vault.exists():
-            self.lock_error.setText("Open NGO Privacy Helper to set it up first.")
+            self.lock_error.setText("Open Encryptra to set it up first.")
             return
         try:
             self.vault.unlock(self.password.text())
