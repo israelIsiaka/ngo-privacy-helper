@@ -14,7 +14,10 @@ from PySide6.QtWidgets import QFrame, QInputDialog, QLabel, QPushButton, QVBoxLa
 
 from ..core import documents
 
-APP_NAME = "NGO Privacy Helper"
+APP_NAME = "Encryptra"
+TAGLINE = "NGO Privacy Helper. Protect the people you serve."
+# Old name kept for storage: the key vault folder and preferences are found by it, so renaming them would lose keys.
+STORAGE_NAME = "NGO Privacy Helper"
 FILE_MANAGER = "Finder" if sys.platform == "darwin" else "File Explorer"
 
 STYLE = """

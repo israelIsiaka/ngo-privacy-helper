@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QFont, QIcon, QPainter, QPainterPath, QPalett
 from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 from ..core.vault import MIN_PASSWORD, Vault, VaultError, WrongPassword
-from .common import APP_NAME, error_label, hint, primary
+from .common import APP_NAME, TAGLINE, error_label, hint, primary
 
 
 def _eye_icon(color, crossed: bool) -> QIcon:
@@ -99,7 +99,8 @@ class LockScreen(QWidget):
         first = not self.vault.exists()
         self.title.setText(f"Welcome to {APP_NAME}" if first else "Unlock")
         self.body.setText(
-            "Create a master password. It locks the keys for every file you protect and every text you hide."
+            f"{TAGLINE}\n\nCreate a master password. "
+            "It locks the keys for every file you protect and every text you hide."
             if first else "Enter your master password to open your keys.")
         self.confirm.setVisible(first)
         self.confirm_label.setVisible(first)

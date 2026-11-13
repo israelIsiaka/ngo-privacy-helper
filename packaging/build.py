@@ -2,8 +2,8 @@
 
     python packaging/build.py
 
-macOS   -> dist/NGO-Privacy-Helper-<version>-macOS-<arch>.dmg
-Windows -> dist/NGO-Privacy-Helper-<version>-Windows-Setup.exe  (needs Inno Setup 6)
+macOS   -> dist/Encryptra-<version>-macOS-<arch>.dmg
+Windows -> dist/Encryptra-<version>-Windows-Setup.exe  (needs Inno Setup 6)
 """
 
 import os
@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAME = "NGO Privacy Helper"
+NAME = "Encryptra"
 VERSION = re.search(r'"(.+)"', (ROOT / "privacy_helper" / "__init__.py").read_text()).group(1)
 DIST = ROOT / "dist"
 
@@ -33,7 +33,7 @@ def pyinstaller() -> None:
 
 def mac_dmg() -> Path:
     arch = "AppleSilicon" if platform.machine() == "arm64" else "Intel"
-    dmg = DIST / f"NGO-Privacy-Helper-{VERSION}-macOS-{arch}.dmg"
+    dmg = DIST / f"Encryptra-{VERSION}-macOS-{arch}.dmg"
     with tempfile.TemporaryDirectory() as tmp:
         stage = Path(tmp) / NAME
         stage.mkdir()
@@ -51,7 +51,7 @@ def windows_installer() -> Path:
         sys.exit("Inno Setup 6 is needed: https://jrsoftware.org/isdl.php")
     run(iscc, f"/DAppVersion={VERSION}", f"/DSourceDir={DIST / NAME}", f"/DOutputDir={DIST}",
         ROOT / "packaging" / "windows" / "installer.iss")
-    return DIST / f"NGO-Privacy-Helper-{VERSION}-Windows-Setup.exe"
+    return DIST / f"Encryptra-{VERSION}-Windows-Setup.exe"
 
 
 def main() -> None:

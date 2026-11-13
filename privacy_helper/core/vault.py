@@ -164,7 +164,7 @@ class Vault:
         except (OSError, ValueError) as exc:
             raise VaultError(f"The key vault could not be read: {exc}") from None
         if outer.get("format") != FORMAT:
-            raise VaultError("This is not an NGO Privacy Helper key vault.")
+            raise VaultError("This is not an Encryptra key vault.")
         if outer.get("version", 0) > VERSION:
             raise VaultError("This vault was made by a newer version of the app. Please update.")
         return outer
