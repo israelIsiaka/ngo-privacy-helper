@@ -17,12 +17,14 @@ from privacy_helper.core.vault import Vault  # noqa: E402
 from privacy_helper.ui.common import STYLE  # noqa: E402
 from privacy_helper.ui.quick_popup import HIDE  # noqa: E402
 from privacy_helper.ui.settings_dialog import ShortcutsDialog  # noqa: E402
+from privacy_helper.ui.tour import Tour  # noqa: E402
 
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 QCoreApplication.setOrganizationName("ngo-privacy-helper-screenshots")   # never the real preferences
 app = QApplication(sys.argv)
-QSettings().setValue("shortcuts/offered", True)   # the offer is pictured below rather than opened as a modal
+QSettings().setValue("shortcuts/offered", True)   # the offer and tour are pictured below rather than opened as modals
+QSettings().setValue("tour/off", True)
 app.setStyleSheet(STYLE)
 print("Style:", app.style().name())
 window = MainWindow(Vault(Path(tempfile.mkdtemp()) / "keys.vault"))
@@ -50,4 +52,10 @@ window.popup.copy()   # Hide Details
 app.processEvents()
 window.popup.grab().save(str(out / "8 Shortcut pop-up.png"))
 window.popup.close()
+tour = Tour(window)
+tour.go(1)
+tour.show()
+app.processEvents()
+tour.grab().save(str(out / "9 Tour.png"))
+tour.close()
 QSettings().clear()

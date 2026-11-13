@@ -16,6 +16,7 @@ Everything happens on the staff member's computer. There is no server, no accoun
 | **Safe Photos** | Open a photo to remove the hidden details phones record, such as the GPS location, camera and date. Drag across faces, name tags or signs to blur them, then save a safe copy. |
 | **Shortcuts in other apps** | Copy text in Word, email or a browser and press the Hide shortcut. A small window shows the copied text. **Hide Details** replaces what was found with codes, leaving possible names unticked for staff to check, and **Copy Safe Version** copies the result. Copy the AI's reply and press the Restore shortcut to fill the real details back in. Each person picks their own keys after creating their master password, or later in **Settings › Shortcuts**. |
 | **Keys** | Every key, PDF password and hidden-details record, listed by file name and searchable. Copy, export, import, or show the protected file in Finder or File Explorer. Set a delete date so a key is destroyed when it is no longer needed. |
+| **Tour** | A short step-by-step tour of each part of the app opens after unlocking, the first 4 times the app is opened. Skip it at any step, tick **Don't show this again** to stop it, or take it again from the **Help** menu. |
 
 Example:
 
