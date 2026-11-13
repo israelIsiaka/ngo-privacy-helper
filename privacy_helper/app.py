@@ -36,6 +36,7 @@ from .ui.protect_page import ProtectPage
 from .ui.quick_popup import HIDE, RESTORE, QuickPopup
 from .ui.restore_page import RestorePage
 from .ui.settings_dialog import SettingsDialog, ShortcutsDialog
+from .ui.tour import Tour, count_shown, due
 
 RESOURCES = Path(__file__).parent / "resources"   # PyInstaller keeps this layout
 
@@ -119,6 +120,7 @@ class MainWindow(QMainWindow):
         self.hotkeys = hotkeys.Hotkeys()
         self.tray: QSystemTrayIcon | None = None
         self.quitting = False
+        self.toured = False   # the tour shows at most once per opening
 
         self.idle = QTimer(self, singleShot=True)
         self.idle.timeout.connect(lambda: self.lock(auto=True))
@@ -187,6 +189,7 @@ class MainWindow(QMainWindow):
 
         help_menu = bar.addMenu("&Help")
         help_menu.addAction(self._action(f"{APP_NAME} &Guide", self.show_guide, QKeySequence.StandardKey.HelpContents))
+        help_menu.addAction(self._action("Take the &Tour", lambda: self.show_tour(offer_stop=False)))
         help_menu.addAction(self._action(f"&About {APP_NAME}", self.show_about, role=QAction.MenuRole.AboutRole))
 
     def _edit(self, slot: str) -> None:
@@ -214,8 +217,21 @@ class MainWindow(QMainWindow):
         pending, self.pending = self.pending, []
         for path in pending:
             self.open_path(path)
+        QTimer.singleShot(0, self.after_unlock)
+
+    def after_unlock(self) -> None:
+        if not self.toured and due():
+            self.toured = True
+            count_shown()
+            self.show_tour()
         if self.hotkeys.supported and not hotkeys.offered():
-            QTimer.singleShot(0, self.offer_shortcuts)
+            self.offer_shortcuts()
+
+    def show_tour(self, offer_stop: bool = True) -> None:
+        tour = Tour(self, offer_stop)
+        tour.section.connect(lambda name: self.sidebar.setCurrentRow([t for t, _ in self.pages].index(name)))
+        tour.exec()
+        self.sidebar.setCurrentRow(0)
 
     def lock(self, auto: bool) -> None:
         if not self.vault.unlocked:
